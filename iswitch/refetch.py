@@ -13,175 +13,10 @@ from iswitch.order_webhook_handlers import (
             handle_topup_success,
             handle_topup_failure,
             handle_refund_success,
-            handle_refund_failure
+            handle_refund_failure,
+            handle_transaction_failure,
+            handle_transaction_success
         )
-
-def handle_transaction_failure(name, status, error_message):
-    """
-    Void authorized (pending) transfer on failure webhook.
-    """
-    try:
-        doc = frappe.get_doc("Order", name)
-
-        transaction = frappe.get_doc("Transaction", {"order": name})
-        if transaction.docstatus == 1:
-            frappe.throw("Transaction already processed")
-
-        merchant = frappe.get_doc("Merchant", doc.merchant_ref_id)
-
-        if not merchant.tigerbeetle_id:
-            frappe.throw("Merchant TB account missing")
-        
-        frappe.set_user(doc.merchant_ref_id)  # Set user context to merchant for accurate permissions and logging
-
-        client = get_client()
-
-        merchant_account_id = int(merchant.tigerbeetle_id)
-        system_account_id = 1
-        amount = int(Decimal(doc.transaction_amount) * 100)
-
-        # 🔹 1️⃣ Balance BEFORE void
-        acc_before = client.lookup_accounts([merchant_account_id])[0]
-
-        opening_balance = (
-            acc_before.credits_posted
-            - acc_before.debits_posted
-            - acc_before.debits_pending
-        ) / 100
-
-        # 🔐 Deterministic IDs
-        auth_transfer_id = stable_id(f"auth-{doc.name}")
-        void_transfer_id = stable_id(f"void-{doc.name}")
-
-        # 🔹 VOID pending transfer
-        void_transfer = tb.Transfer(
-            id=void_transfer_id,
-            debit_account_id=merchant_account_id,
-            credit_account_id=system_account_id,
-            amount=amount,
-            pending_id=auth_transfer_id,
-            user_data_128=0,
-            user_data_64=0,
-            user_data_32=0,
-            timeout=0,
-            ledger=1,
-            code=400,
-            flags=tb.TransferFlags.VOID_PENDING_TRANSFER,
-            timestamp=0,
-        )
-
-        errors = client.create_transfers([void_transfer])
-
-        if errors:
-            error = errors[0]
-            if error.result != tb.CreateTransferResult.EXISTS:
-                frappe.throw(f"Void failed: {error.result}")
-        
-        # 🔹 3️⃣ Balance AFTER void
-        acc_after = client.lookup_accounts([merchant_account_id])[0]
-
-        closing_balance = (
-            acc_after.credits_posted
-            - acc_after.debits_posted
-            - acc_after.debits_pending
-        ) / 100
-        
-        # 🔹 Update Order
-        doc.status = status
-        doc.reason = error_message[:100]
-        doc.save(ignore_permissions=True)
-
-        
-        transaction.status = status
-        transaction.save(ignore_permissions=True)
-        transaction.submit()
-
-        ledger = frappe.get_doc({
-            "doctype": 'Ledger',
-            "order": doc.name,
-            "transaction_type": 'Credit',
-            'status': status,
-            'transaction_id': transaction.name,
-            'client_ref_id': doc.client_ref_id,
-            'opening_balance': opening_balance,
-            "closing_balance": closing_balance
-        }).insert(ignore_permissions=True)
-        ledger.submit()
-
-        
-    except Exception as e:
-        # frappe.db.rollback(save_point="status_process")
-        frappe.log_error("Void Error", str(e))
-        raise
-
-def handle_transaction_success(name, transaction_reference_id):
-    """
-    Capture authorized (pending) transfer on success webhook.
-    """
-    try:
-        doc = frappe.get_doc("Order", name)
-
-        transaction = frappe.get_doc("Transaction", {"order": name})
-        if transaction.docstatus == 1:
-            frappe.throw("Transaction already processed")
-
-        merchant = frappe.get_doc("Merchant", doc.merchant_ref_id)
-
-        if not merchant.tigerbeetle_id:
-            frappe.throw("Merchant TB account missing")
-
-        frappe.set_user(doc.merchant_ref_id)  # Set user context to merchant for accurate permissions and logging
-
-        client = get_client()
-
-        merchant_account_id = int(merchant.tigerbeetle_id)
-        system_account_id = 1
-        amount = int(Decimal(doc.transaction_amount) * 100)
-
-        # 🔐 Deterministic IDs
-        auth_transfer_id = stable_id(f"auth-{doc.name}")
-        capture_transfer_id = stable_id(f"capture-{doc.name}")
-
-        # 🔹 POST pending transfer (Capture)
-        capture = tb.Transfer(
-            id=capture_transfer_id,
-            debit_account_id=merchant_account_id,
-            credit_account_id=system_account_id,
-            amount=amount,
-            pending_id=auth_transfer_id,
-            user_data_128=0,
-            user_data_64=0,
-            user_data_32=0,
-            timeout=0,
-            ledger=1,
-            code=400,
-            flags=tb.TransferFlags.POST_PENDING_TRANSFER,
-            timestamp=0,
-        )
-
-        errors = client.create_transfers([capture])
-
-        if errors:
-            error = errors[0]
-            if error.result != tb.CreateTransferResult.EXISTS:
-                frappe.throw(f"Capture failed: {error.result}")
-
-        # 🔹 Update Order
-        doc.status = "Processed"
-        doc.utr = transaction_reference_id
-        doc.save(ignore_permissions=True)
-
-        
-        transaction.status = "Success"
-        transaction.transaction_reference_id = transaction_reference_id
-        transaction.save(ignore_permissions=True)
-        transaction.submit()
-
-    except Exception as e:
-        # frappe.db.rollback(save_point="status_process")
-        frappe.log_error("Capture Error", str(e))
-        raise
-
 
 def generate_hash(merchant_id, parameters, hashing_method, secret_key, key_order):
     hash_data = str(merchant_id)
@@ -222,94 +57,47 @@ def update_record():
             utr = ""
             remark = ""
 
-            if result.integration_id == "Rabi Pays":
+            if result.integration_id == "PAYPROCESS2603160001":
                 processor = frappe.get_doc("Integration", result.integration_id)
-                crn = frappe.db.get_value("Transaction",{"order":result.name},'crn')
-
-                payload = {}
-                
-                raw_body = json.dumps(payload, separators=(',', ':'), ensure_ascii=False)
-            
-                # Step 3 & 4: Generate HMAC SHA-256 signature in HEX format
+                merchant_id = processor.get_password("client_id")
                 secret_key = processor.get_password("secret_key")
-                hmac_obj = HMAC.new(
-                    secret_key.encode("utf-8"), 
-                    raw_body.encode("utf-8"), 
-                    SHA256
-                )
-                signature = hmac_obj.hexdigest()
-
-                # Step 5: Pass signature in header
                 headers = {
-                    "rabipay-client-id": processor.get_password("client_id"),
-                    "rabipay-signature": signature
+                    "merchantID": merchant_id,
+                    "secretKey": secret_key
                 }
 
-                url = processor.api_endpoint.rstrip("/") + f"/transaction/status/{crn}"
-                api_response = requests.get(url, headers=headers, timeout=30)
-                try:
-                    api_data = api_response.json()
-                    frappe.log_error(f"Rabi Pay Query API Response {result.name}", api_data)
-                    status = api_data.get("status")
-                    utr = api_data.get("utr", "")
-
-                    if status == "success":
-                        txn_status = "Success"
-                    elif status == "failed":
-                        txn_status = "Failed"
-                    
-                except Exception as e:
-                    # frappe.db.rollback(save_point="status_process")
-                    frappe.log_error(f"Error in Rabi Pay requery {result.name}", api_response.text)
-                    raise
-            
-            elif result.integration_id == "PAYPROCESS2603090008":
-                processor = frappe.get_doc("Integration", result.integration_id)
-                crn = frappe.db.get_value("Transaction",{"order":result.name},'crn')
-
-                url = processor.api_endpoint.rstrip("/") + f"/payout/orders/{crn}"
-                headers = {
-                    "Authorization": "Basic <Base64Encoded(username:password)>"
-                }
-                response = requests.get(url, json=payload, headers=headers, timeout=30)
-                api_response = None
-                try:
-                    api_response = response.json()
-                except Exception as e:
-                    frappe.log_error("Error in onepesa requery",response.text)
-                    frappe.throw("Error in onepesa requery")
-                
-                if api_response.get("code") == "0x0200":
-                    txn_status == api_response.get("status")
-                    utr = api_response.get("data",{}).get("utr","")
-                
-
-            elif result.integration_id == "PAYPROCESS2602280371":
-                processor = frappe.get_doc("Integration",result.integration_id)
-                order = frappe.get_doc("Order", result.name)
                 payload = {
-                    "api_token": processor.get_password("secret_key"),
-                    "order_id": order.processor_order_id
+                    "paymentReferenceNo" : result.name
                 }
-                headers = {
-                    "Content-Type": "application/v2+json"
-                }
-                url = processor.api_endpoint.rstrip("/") + "/check-trxn-status"
-                response = requests.post(url, json = payload, headers=headers)
+                key_order = ["paymentReferenceNo"]
+                generated_hash = generate_hash(merchant_id, payload, 'sha512', secret_key, key_order)
+                payload['hash'] = generated_hash
+                url = processor.api_endpoint.rstrip("/")+ "/check-payout-transaction-status"
 
+                response = requests.post(url, headers = headers, json = payload)
                 api_response = None
                 try:
                     api_response = response.json()
-                    frappe.log_error("TPI requery response", api_response)
+                    frappe.log_error(f"AlbePay status fetch Response {result.name}",api_response)
                 except Exception as e:
-                    frappe.log_error("Error in TPI requery", response.text)
+                    frappe.log_error(f"AblePay Invalid json Response {result.name}",response.text)
                 
-                if api_response.get("status") == "success":
-                    api_data = api_response.get("data",{})
-                    if api_data.get("type") == "payin":
-                        if api_data.get("status")=="credit":
-                            txn_status == "SUCCESS"
-                            utr = api_data.get("utr")
+                success = api_response.get("success", False)
+                remark = api_response.get("message", "")
+
+                if success:
+                    api_data = api_response.get("data")[0]
+                    order_id = api_data.get("paymentReferenceNo","")
+                    status = api_data.get("updatedStatus","")
+                    utr = api_data.get("utrId","")
+                    
+                    if status == "Failure":
+                        txn_status = "FAILED"
+                    elif status == "Success":
+                        txn_status = "SUCCESS"
+                    else:
+                        txn_status = "Pending"
+            
 
             # if txn_status == "Success":
             #     handle_transaction_success(result.name, utr)
@@ -391,7 +179,3 @@ def get_hash_string(payload, secret_key):
     except Exception as e:
         frappe.log_error("Error in hash string generation", str(e))
         raise
-
-
-def stable_id(value: str) -> int:
-    return int(hashlib.sha256(value.encode()).hexdigest()[:32], 16)

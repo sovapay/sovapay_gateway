@@ -236,10 +236,11 @@ export function AdminReports() {
     const transactionsTotal = transactionsData?.total || 0;
 
     const ledgerEntries = ledgersData?.entries || [];
+    const ledgersTotal = ledgersData?.total || 0;
 
 
     const adminSettlements = settlementsData?.logs || [];
-
+    const settlementsTotal = settlementsData?.total || 0;
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: TrendingUp },
@@ -708,7 +709,7 @@ export function AdminReports() {
                                             <td className="px-6 py-4 text-sm text-slate-600">
                                                 {entry.merchant_name}
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-slate-600">{entry.description}</td>
+                                            <td className="px-6 py-4 text-sm text-slate-600">{entry.order_id}</td>
                                             <td className="px-6 py-4 text-sm font-medium text-success-600">{entry.credit > 0 ? formatCurrency(entry.credit) : '-'}</td>
                                             <td className="px-6 py-4 text-sm font-medium text-error-600">{entry.debit > 0 ? formatCurrency(entry.debit) : '-'}</td>
                                             <td className="px-6 py-4 text-sm font-medium text-slate-900">{formatCurrency(entry.balance)}</td>
@@ -724,6 +725,30 @@ export function AdminReports() {
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+                        {/* Pagination */}
+                        <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-white text-sm">
+                            <div className="text-slate-500">
+                                Showing {(currentPage - 1) * 20 + 1} to {Math.min(currentPage * 20, ledgersTotal)} of {ledgersTotal}
+                            </div>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                >
+                                    Previous
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => setCurrentPage(p => p + 1)}
+                                    disabled={currentPage * 20 >= ledgersTotal}
+                                >
+                                    Next
+                                </Button>
+                            </div>
                         </div>
                     </Card>
                 )}
@@ -783,6 +808,30 @@ export function AdminReports() {
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+                        {/* Pagination */}
+                        <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-white text-sm">
+                            <div className="text-slate-500">
+                                Showing {(currentPage - 1) * 20 + 1} to {Math.min(currentPage * 20, settlementsTotal)} of {settlementsTotal}
+                            </div>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                >
+                                    Previous
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => setCurrentPage(p => p + 1)}
+                                    disabled={currentPage * 20 >= settlementsTotal}
+                                >
+                                    Next
+                                </Button>
+                            </div>
                         </div>
                     </Card>
                 )}

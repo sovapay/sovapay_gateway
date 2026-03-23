@@ -78,10 +78,12 @@ class Order(Document):
             self.integration_id = merchant.integration
             self.merchant_ref_id = self.owner
             self.transaction_amount = total_amount
-            self.status = "Queued"
+
         self.owner = self.merchant_ref_id
     def after_insert(self):
         if self.channel == "Web":
+            integration_id = frappe.db.get_value("Merchant", self.owner, "integration")
+            self.db_set("integration_id", integration_id)
             frappe.db.savepoint("order_insert")
             try:
 

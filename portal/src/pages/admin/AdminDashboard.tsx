@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useState } from 'react';
 import {
   Users, FileText, DollarSign,
   Activity, ChevronUp, ChevronDown, ArrowUpRight
@@ -8,6 +9,10 @@ import { Card, Badge, Button } from '../../components/ui';
 import { InteractiveAreaChart } from '../../components/charts/InteractiveAreaChart';
 import { formatCurrency } from '../../utils/formatters';
 import { BroadcastMessageModal } from '../../components/admin';
+
+import { useFrappeGetCall } from 'frappe-react-sdk';
+import { adminMethods } from '../../services/methods';
+
 
 function MetricCard({
   title,
@@ -30,13 +35,19 @@ function MetricCard({
     warning: 'bg-warning-100 text-warning-600',
     error: 'bg-error-100 text-error-600',
   };
+  const getFontSize = (val: string) => {
+    if (val.length > 14) return 'text-base font-semibold';
+    if (val.length > 11) return 'text-lg font-semibold';
+    if (val.length > 9)  return 'text-xl font-semibold';
+    return 'text-2xl font-semibold';
+  };
 
   return (
     <Card>
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-slate-500">{title}</p>
-          <p className="text-2xl font-semibold text-slate-900 mt-1">{value}</p>
+          <p className={`${getFontSize(value)} text-slate-900 mt-1 truncate`}>{value}</p>
           {change && (
             <div className={`flex items-center gap-1 mt-1 text-sm ${trend === 'up' ? 'text-success-600' : 'text-error-600'}`}>
               {trend === 'up' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
@@ -52,24 +63,22 @@ function MetricCard({
   );
 }
 
-import { useState } from 'react';
-
-// ... (imports)
-
-import { useFrappeGetCall } from 'frappe-react-sdk';
-import { adminMethods } from '../../services/methods';
-
-// ... (imports)
-
 export function AdminDashboard() {
   const [period, setPeriod] = useState('Last 30 days');
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
-
+  const [selectedMerchant, setSelectedMerchant] = useState('all');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   // Fetch real dashboard stats with period
   const { data: { message: dashboardData } = {} } = useFrappeGetCall(
     adminMethods.getDashboardStats,
-    { period },
-    `admin-dashboard-stats-${period}`
+    {
+        period,
+        merchant: selectedMerchant !== 'all' ? selectedMerchant : undefined,
+        from_date: fromDate || undefined,
+        to_date: toDate || undefined,
+    },
+    `admin-dashboard-stats-${period}-${selectedMerchant}-${fromDate}-${toDate}`
   );
 
   const { data: { message: kycData } = {} } = useFrappeGetCall(
@@ -98,19 +107,24 @@ export function AdminDashboard() {
 
   const stats = dashboardData?.stats || defaultStats;
 
-  // Transform chart data for InteractiveAreaChart (Orders & Revenue)
+  // Transform chart data for InteractiveAreaChart (Orders & Volume)
   const chartDataRaw = dashboardData?.chart_data;
   const chartData = chartDataRaw?.categories?.map((date: string, index: number) => ({
     date,
     orders: chartDataRaw.series[1]?.data[index] || 0,
-    revenue: chartDataRaw.series[0]?.data[index] || 0
+    volume: chartDataRaw.series[0]?.data[index] || 0
   })) || [];
 
   const merchants = merchantsData?.merchants || [];
-  const pendingKYC = kycData?.submissions || [];
-
+  const merchantOptions = merchants.map((m: any) => ({
+    id: m.name,
+    name: m.company_name,
+  }));
+  
   // Calculate metrics
   const totalVolume = stats.total_processed_amount || 0;
+  const totalPendingVolume = stats.total_pending_amount || 0;
+  const totalFailedVolume = stats.total_cancelled_amount || 0;
   const totalOrders = stats.total_orders || 0;
   const processedOrders = stats.processed_orders || 0;
   const successRate = totalOrders > 0 ? ((processedOrders / totalOrders) * 100).toFixed(1) : '0.0';
@@ -150,20 +164,20 @@ export function AdminDashboard() {
               color={dashboardData?.metric_trends?.volume_change_pct >= 0 ? 'success' : 'error'}
             />
             <MetricCard
-              title="Active Merchants"
-              value={activeMerchants.toString()}
-              change={`+${dashboardData?.metric_trends?.new_merchants_this_week || 0} this week`}
-              icon={Users}
-              trend="up"
-              color="slate"
+              title="Pending Volume"
+              value={formatCurrency(totalPendingVolume)}
+              change={`${dashboardData?.metric_trends?.pending_volume_change_pct > 0 ? '+' : ''}${dashboardData?.metric_trends?.pending_volume_change_pct || 0}% vs last month`}
+              icon={DollarSign}
+              trend={dashboardData?.metric_trends?.pending_volume_change_pct >= 0 ? 'up' : 'down'}
+              color="warning"
             />
             <MetricCard
-              title="Pending KYC"
-              value={pendingKYC.length.toString()}
-              icon={FileText}
-              change={`${dashboardData?.metric_trends?.new_kyc_today || 0} new today`}
-              trend="up"
-              color="warning"
+              title="Failed Volume"
+              value={formatCurrency(totalFailedVolume)}
+              change={`${dashboardData?.metric_trends?.failed_volume_change_pct > 0 ? '+' : ''}${dashboardData?.metric_trends?.failed_volume_change_pct || 0}% vs last month`}
+              icon={DollarSign}
+              trend={dashboardData?.metric_trends?.failed_volume_change_pct <= 0 ? 'up' : 'down'}
+              color="error"
             />
             <MetricCard
               title="Success Rate"
@@ -181,7 +195,13 @@ export function AdminDashboard() {
               data={chartData}
               period={period}
               onPeriodChange={setPeriod}
-            />
+              merchants={merchantOptions}
+              onMerchantChange={(id) => setSelectedMerchant(id)}
+              onDateRangeChange={(from, to) => {
+                  setFromDate(from);
+                  setToDate(to);
+              }}
+          />
           </div>
 
           {/* Bottom Section - Merchant Overview & System Activity */}

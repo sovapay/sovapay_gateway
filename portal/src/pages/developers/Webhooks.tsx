@@ -198,11 +198,11 @@ export function Webhooks() {
       <Card className="bg-slate-50 border-slate-200">
         <h3 className="text-sm font-medium text-slate-900 mb-3">Webhook Security</h3>
         <p className="text-sm text-slate-600 mb-4">
-          Verify webhook signatures to ensure requests are from Setl. Use your webhook signing secret to validate payloads.
+          Verify webhook signatures to ensure requests are from SovaPay. Use your webhook signing secret to validate payloads.
         </p>
         <div className="bg-slate-900 rounded-lg p-4 overflow-x-auto">
           <pre className="text-sm text-slate-100 font-mono">
-            {`const signature = req.headers['setl-signature'];
+            {`const signature = req.headers['sovapay-signature'];
 const payload = JSON.stringify(req.body);
 const expected = crypto
   .createHmac('sha256', webhookSecret)

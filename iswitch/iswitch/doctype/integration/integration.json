@@ -121,11 +121,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-02 15:03:20.379091",
+ "modified": "2026-03-17 01:02:47.488163",
  "modified_by": "Administrator",
  "module": "iSwitch",
  "name": "Integration",
- "naming_rule": "Expression",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {
@@ -144,5 +144,6 @@
  "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "track_changes": 1
 }

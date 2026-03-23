@@ -207,7 +207,7 @@ def create_order():
     try:
         validate_auth()
 
-    except frappe.AuthenticationError:
+    except Exception:
         response = {
             "code": "0x0401",
             "status": "MISSING_HEADER",

@@ -5,5 +5,5 @@
 from frappe.tests.utils import FrappeTestCase
 
 
-class TestBlinkpeWebhook(FrappeTestCase):
+class TestSovaPayWebhook(FrappeTestCase):
 	pass

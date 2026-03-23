@@ -171,7 +171,23 @@ class Adjustment(Document):
         Creates Frappe Ledger entry
         """
         frappe.set_user(self.merchant_id)
-        text = f"Lien Adjustment: {self.remark}" if self.remark else "Lien Adjustment"
+        # Base remark
+        base_remark = self.remark or ""
+
+        if type == "Debit":
+            action = "Lien Marked"
+            symbol = "🔒"
+        elif type == "Credit":
+            action = "Lien Released"
+            symbol = "🔓"
+        else:
+            action = "Lien Adjustment"
+            symbol = "ℹ️"
+
+        # Final description
+        text = f"{symbol} {action} ₹{amount}"
+        if base_remark:
+            text += f" - {base_remark}"
 
         ledger = frappe.get_doc({
             "doctype": "Ledger",
@@ -179,9 +195,10 @@ class Adjustment(Document):
             "status": "Success",
             "transaction_amount": amount,
             "transaction_id": self.name,
+            "merchant": self.merchant_id,
             "opening_balance": opening,
             "closing_balance": closing,
-            "client_ref_id": text
+            "order": text
         })
         ledger.insert(ignore_permissions=True)
         ledger.submit()

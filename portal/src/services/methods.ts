@@ -123,6 +123,7 @@ export const adminMethods = {
     getVirtualAccounts: 'iswitch.admin_portal_api.get_virtual_accounts',
     getVirtualAccountDetails: 'iswitch.admin_portal_api.get_virtual_account_details',
     creditWallet: 'iswitch.admin_portal_api.credit_wallet',
+    updateWalletBalance: 'iswitch.admin_portal_api.update_wallet_balance',
     updateBankAccountStatus: 'iswitch.admin_portal_api.update_bank_account_status',
     exportOrdersToExcel: 'iswitch.admin_portal_api.export_orders_to_excel',
     exportTransactionsToExcel: 'iswitch.admin_portal_api.export_transactions_to_excel',

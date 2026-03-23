@@ -202,12 +202,12 @@ export function Documentation() {
       <div>
         <h3 className="text-2xl font-bold mb-1">API Documentation</h3>
         <p className="text-slate-500 mb-4 text-sm">
-          Complete reference for integrating with Setl payment services — covering pay-ins (collections), pay-outs (disbursements), order management, wallet operations, and webhook notifications.
+          Complete reference for integrating with SovaPay payment services — covering pay-ins (collections), pay-outs (disbursements), order management, wallet operations, and webhook notifications.
         </p>
         <div className="rounded-lg border bg-slate-50 p-4 space-y-3">
           <div>
             <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Base URL</h4>
-            <code className="block bg-white rounded px-3 py-2 font-mono text-sm border border-slate-200">https://setl.us</code>
+            <code className="block bg-white rounded px-3 py-2 font-mono text-sm border border-slate-200">https://v2.sovapay.net</code>
           </div>
           <div className="grid grid-cols-3 gap-3 pt-1">
             {[
@@ -237,7 +237,7 @@ export function Documentation() {
         <div>
           <SectionTitle id="authentication">Authentication</SectionTitle>
           <p className="text-sm text-slate-500">
-            The Setl API uses token-based authentication. Once generated, tokens remain valid for the lifetime of the account unless regenerated. Every API request (except token generation) must include the <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">Authorization</code> header.
+            The SovaPay API uses token-based authentication. Once generated, tokens remain valid for the lifetime of the account unless regenerated. Every API request (except token generation) must include the <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">Authorization</code> header.
           </p>
         </div>
 
@@ -271,7 +271,7 @@ export function Documentation() {
           <div className="space-y-1">
             <FieldLabel>Parameters</FieldLabel>
             <ParamsTable rows={[
-              { name: "usr", type: "string", req: "required", desc: "Merchant account email address registered with Setl." },
+              { name: "usr", type: "string", req: "required", desc: "Merchant account email address registered with SovaPay." },
               { name: "pwd", type: "string", req: "required", desc: "Merchant account password." },
             ]} />
           </div>
@@ -355,7 +355,7 @@ Authorization: Token {api_key}:{api_secret}`}</CodeBlock>
     "code":     "0x0200",
     "status":   "Success",
     "order_id": "h9uo9khl6a",
-    "qr":       "upi://pay?pa=kdas2024@nsdlpbma&pn=KDAS%20TECHNOLOGIES%20OPC%20PRIVATE%20LIMITED&mc=7372&tr=536276781798654053&tn=SchedulerTest&am=10.00&cu=INR&mode=05&orgid=181046&purpose=00",
+    "qr":       "upi://pay?pa=paystring&tr=536276781798654053&tn=SchedulerTest&am=10.00&cu=INR&mode=05&orgid=181946&purpose=00",
     "message":  "Transaction initiated"
   }
 }`}</CodeBlock>
@@ -366,7 +366,7 @@ Authorization: Token {api_key}:{api_secret}`}</CodeBlock>
             <ParamsTable rows={[
               { name: "code", type: "string", req: "optional", desc: `"0x0200" indicates the request was accepted successfully.` },
               { name: "status", type: "string", req: "optional", desc: `"Success" — pay-in order created, awaiting customer payment.` },
-              { name: "order_id", type: "string", req: "optional", desc: "Setl's internal order identifier. Store this alongside your clientRefId for reconciliation." },
+              { name: "order_id", type: "string", req: "optional", desc: "SovaPay's internal order identifier. Store this alongside your clientRefId for reconciliation." },
               { name: "qr", type: "string", req: "optional", desc: `A fully-formed UPI deep-link URI (upi://pay?...). Pass this string to any QR generation library to render a scannable QR code.` },
               { name: "message", type: "string", req: "optional", desc: "Human-readable status message." },
             ]} />
@@ -396,7 +396,7 @@ Authorization: Token {api_key}:{api_secret}`}</CodeBlock>
         <div>
           <SectionTitle id="payout">Pay-Out (Disbursements)</SectionTitle>
           <p className="text-sm text-slate-500">
-            Pay-Out sends funds from your Setl wallet to a beneficiary via UPI or bank transfer (IMPS / NEFT / RTGS). Orders are validated, deducted from your wallet balance (including fee + GST), and processed asynchronously. The wallet must have sufficient balance before placing an order.
+            Pay-Out sends funds from your SovaPay wallet to a beneficiary via UPI or bank transfer (IMPS / NEFT / RTGS). Orders are validated, deducted from your wallet balance (including fee + GST), and processed asynchronously. The wallet must have sufficient balance before placing an order.
           </p>
         </div>
 
@@ -522,7 +522,7 @@ Authorization: Token {api_key}:{api_secret}`}</CodeBlock>
               { name: "code", type: "string", req: "optional", desc: `"0x0200" confirms the order was accepted into the queue.` },
               { name: "status", type: "string", req: "optional", desc: `"SUCCESS" — order created and queued for processing.` },
               { name: "data.clientRefId", type: "string", req: "optional", desc: "Your original reference ID echoed back for confirmation." },
-              { name: "data.orderRefId", type: "string", req: "optional", desc: "Setl's internal order reference number. Use this or clientRefId to requery status." },
+              { name: "data.orderRefId", type: "string", req: "optional", desc: "SovaPay's internal order reference number. Use this or clientRefId to requery status." },
               { name: "data.status", type: "string", req: "optional", desc: `Initial order status — always "Queued" on successful creation.` },
             ]} />
           </div>
@@ -538,7 +538,7 @@ Authorization: Token {api_key}:{api_secret}`}</CodeBlock>
         <div>
           <SectionTitle id="requery">Check Order Status (Requery)</SectionTitle>
           <p className="text-sm text-slate-500">
-            Query the real-time status and settlement details of any transaction — both pay-ins and pay-outs — using your original <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">clientRefId</code> or Setl's <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">orderRefId</code>.
+            Query the real-time status and settlement details of any transaction — both pay-ins and pay-outs — using your original <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">clientRefId</code> or SovaPay's <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">orderRefId</code>.
           </p>
         </div>
 
@@ -575,7 +575,7 @@ Authorization: Token {api_key}:{api_secret}`}</CodeBlock>
             <FieldLabel>Parameters</FieldLabel>
             <ParamsTable rows={[
               { name: "clientRefId", type: "string", req: "conditional", desc: "Your original client reference ID. Either this or orderRefId must be provided." },
-              { name: "orderRefId", type: "string", req: "conditional", desc: "Setl's internal order reference number (returned during order creation). Either this or clientRefId must be provided." },
+              { name: "orderRefId", type: "string", req: "conditional", desc: "SovaPay's internal order reference number (returned during order creation). Either this or clientRefId must be provided." },
             ]} />
           </div>
 
@@ -607,7 +607,7 @@ Authorization: Token {api_key}:{api_secret}`}</CodeBlock>
             <ParamsTable rows={[
               { name: "clientRefId", type: "string", req: "optional", desc: "Your original reference ID." },
               { name: "accountNo", type: "string", req: "optional", desc: "Beneficiary account number (bank transfers only). null for UPI and pay-in orders." },
-              { name: "orderRefId", type: "string", req: "optional", desc: "Setl's internal order reference number." },
+              { name: "orderRefId", type: "string", req: "optional", desc: "SovaPay's internal order reference number." },
               { name: "currency", type: "string", req: "optional", desc: `Always "INR".` },
               { name: "amount", type: "number", req: "optional", desc: "The original order amount (excluding fee and tax)." },
               { name: "fee", type: "number", req: "optional", desc: "Fee charged for this transaction per your pricing plan." },
@@ -652,7 +652,7 @@ Authorization: Token {api_key}:{api_secret}`}</CodeBlock>
       <div className="space-y-4">
         <div>
           <SectionTitle id="wallet">Wallet</SectionTitle>
-          <p className="text-sm text-slate-500">Retrieve the current balance and status of your Setl merchant wallet. The balance reflects funds available for pay-out orders after accounting for any in-flight (pending) transfers.</p>
+          <p className="text-sm text-slate-500">Retrieve the current balance and status of your SovaPay merchant wallet. The balance reflects funds available for pay-out orders after accounting for any in-flight (pending) transfers.</p>
         </div>
 
         <Card className="space-y-4">
@@ -703,14 +703,14 @@ Authorization: Token {api_key}:{api_secret}`}</CodeBlock>
         <div>
           <SectionTitle id="webhooks">Webhooks</SectionTitle>
           <p className="text-sm text-slate-500">
-            Setl pushes real-time status notifications to your configured endpoint URL when a transaction reaches a terminal state. Webhooks fire for <strong>both pay-in and pay-out</strong> orders — the payload schema is identical for both.
+            SovaPay pushes real-time status notifications to your configured endpoint URL when a transaction reaches a terminal state. Webhooks fire for <strong>both pay-in and pay-out</strong> orders — the payload schema is identical for both.
           </p>
         </div>
 
         <Card className="space-y-4">
           <div>
             <h4 className="text-base font-semibold mb-0.5">Webhook Configuration</h4>
-            <p className="text-xs text-slate-500">Register your endpoint URL in the <strong>Webhooks</strong> tab of your Setl dashboard, or contact Setl support. Your endpoint must return HTTP <code>200</code> to acknowledge receipt.</p>
+            <p className="text-xs text-slate-500">Register your endpoint URL in the <strong>Webhooks</strong> tab of your SovaPay dashboard, or contact SovaPay support. Your endpoint must return HTTP <code>200</code> to acknowledge receipt.</p>
           </div>
 
           <div className="space-y-1">
@@ -739,7 +739,7 @@ Authorization: Token {api_key}:{api_secret}`}</CodeBlock>
             <FieldLabel>Webhook Payload Schema</FieldLabel>
             <CodeBlock>{`{
   "clientRefID": "TXN_20250908_001",   // Your original reference ID
-  "crn":         "SVORD2509080083106", // Setl's internal order reference
+  "crn":         "SVORD2509080083106", // SovaPay's internal order reference
   "status":      "Success",            // "Success" | "Failed" | "Reversed"
   "utr":         "425020416966"        // Bank UTR — null if status is Failed
 }`}</CodeBlock>
@@ -749,7 +749,7 @@ Authorization: Token {api_key}:{api_secret}`}</CodeBlock>
             <FieldLabel>Payload Parameters</FieldLabel>
             <ParamsTable rows={[
               { name: "clientRefID", type: "string", req: "optional", desc: "The reference ID you submitted when creating the order. Use this to match the incoming webhook to your internal record." },
-              { name: "crn", type: "string", req: "optional", desc: "Setl's internal order reference number — equivalent to orderRefId in order creation responses." },
+              { name: "crn", type: "string", req: "optional", desc: "SovaPay's internal order reference number — equivalent to orderRefId in order creation responses." },
               { name: "status", type: "string", req: "optional", desc: `Terminal transaction outcome: "Success", "Failed", or "Reversed".` },
               { name: "utr", type: "string|null", req: "optional", desc: `Unique Transaction Reference assigned by the bank. Present when status is "Success" or "Reversed". null for failed transactions.` },
             ]} />
@@ -852,7 +852,7 @@ Authorization: Token {api_key}:{api_secret}`}</CodeBlock>
               ["3", "Create Pay-In", "POST /api/method/payin with amount, mode: \"topup\", and your unique clientRefId."],
               ["4", "Render QR", "Pass the qr string to a QR library and show it to your customer."],
               ["5", "Await payment", "Customer scans and pays via their UPI app."],
-              ["6", "Receive webhook", "Setl POSTs to your webhook URL with status: \"Success\" or \"Failed\"."],
+              ["6", "Receive webhook", "SovaPay POSTs to your webhook URL with status: \"Success\" or \"Failed\"."],
               ["7", "Confirm via requery", "Optionally call /api/method/requery to independently verify status."],
             ].map(([n, title, desc]) => (
               <div key={n} className="flex gap-3 items-start">
@@ -873,7 +873,7 @@ Authorization: Token {api_key}:{api_secret}`}</CodeBlock>
               ["3", "Check Wallet Balance", "Call /api/method/wallet to confirm sufficient funds (amount + fee + tax)."],
               ["4", "Create Pay-Out Order", "POST /api/method/order with beneficiary details and a unique clientRefId."],
               ["5", "Store orderRefId", "Save the returned orderRefId alongside your clientRefId for reconciliation."],
-              ["6", "Receive webhook", "Setl POSTs to your webhook URL when the transfer reaches a terminal state."],
+              ["6", "Receive webhook", "SovaPay POSTs to your webhook URL when the transfer reaches a terminal state."],
               ["7", "Confirm via requery", "Call /api/method/requery any time to check live order status and UTR."],
             ].map(([n, title, desc]) => (
               <div key={n} className="flex gap-3 items-start">

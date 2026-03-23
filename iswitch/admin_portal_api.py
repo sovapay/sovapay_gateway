@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from frappe.utils.file_manager import save_file
 import tigerbeetle as tb
 from iswitch.tigerbeetle_client import get_client
+from frappe.utils.xlsxutils import make_xlsx
 
 def check_admin_permission():
     # role_profile = frappe.db.get_value("User", frappe.session.user, "role_profile_name")
@@ -44,32 +45,66 @@ def normalize_date_filter(date_str, is_end_date=False):
 
 
 @frappe.whitelist()
-def get_dashboard_stats(period='Last 30 days'):
+def get_dashboard_stats(period='Last 30 days', merchant=None, from_date=None, to_date=None):
     """Get comprehensive dashboard statistics for ALL merchants"""
     try:
         check_admin_permission()
         
-        # Get total wallet balance of all merchants
-        wallet_data = frappe.db.sql("""
-            SELECT SUM(balance) as total_balance
-            FROM `tabWallet`
-        """, as_dict=True)
+        base_conditions = ["1=1"]
+        base_values = {}
+
+        if merchant:
+            base_conditions.append("merchant_ref_id = %(merchant)s")
+            base_values["merchant"] = merchant
+
         
-        wallet_balance = wallet_data[0].total_balance if wallet_data and wallet_data[0].total_balance else 0
-        
+        # Handle date range
+        if from_date and to_date:
+            from_date = normalize_date_filter(from_date, is_end_date=False)
+            to_date = normalize_date_filter(to_date, is_end_date=True)
+        else:
+            days = 30
+            if period == 'Last 7 days':
+                days = 7
+            elif period == 'Last 90 days':
+                days = 90
+            if period == 'Today':
+                from_date = normalize_date_filter(str(frappe.utils.nowdate()), is_end_date=False)
+                to_date = normalize_date_filter(str(frappe.utils.nowdate()), is_end_date=True)
+            else:
+                from_date = normalize_date_filter(
+                    str(frappe.utils.add_days(frappe.utils.nowdate(), -days)),
+                    is_end_date=False
+                )
+                to_date = normalize_date_filter(
+                    str(frappe.utils.nowdate()),
+                    is_end_date=True
+                )
+
+        base_conditions.append("creation >= %(from_date)s")
+        base_conditions.append("creation <= %(to_date)s")
+        base_values["from_date"] = from_date
+        base_values["to_date"] = to_date
+
+        base_where = " AND ".join(base_conditions)
+
         # Get global order statistics
-        order_stats = frappe.db.sql("""
+        order_stats = frappe.db.sql(f"""
             SELECT 
                 COUNT(*) as total_orders,
                 SUM(CASE WHEN status = 'Processed' THEN 1 ELSE 0 END) as processed_orders,
                 SUM(CASE WHEN status IN ('Pending', 'Processing', 'Queued') THEN 1 ELSE 0 END) as pending_orders,
                 SUM(CASE WHEN status IN ('Cancelled', 'Reversed') THEN 1 ELSE 0 END) as cancelled_orders,
-                SUM(CASE WHEN status = 'Processed' THEN COALESCE(order_amount, 0) ELSE 0 END) as total_processed_amount,
-                SUM(CASE WHEN status IN ('Pending', 'Processing', 'Queued') THEN COALESCE(order_amount, 0) ELSE 0 END) as total_pending_amount,
-                SUM(CASE WHEN status IN ('Cancelled', 'Reversed') THEN COALESCE(order_amount, 0) ELSE 0 END) as total_cancelled_amount,
+                SUM(CASE WHEN status = 'Processed' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as total_processed_amount,
+                SUM(CASE WHEN status IN ('Pending', 'Processing', 'Queued') THEN COALESCE(transaction_amount, 0) ELSE 0 END) as total_pending_amount,
+                SUM(CASE WHEN status IN ('Cancelled', 'Failed', 'Reversed') THEN COALESCE(transaction_amount, 0) ELSE 0 END) as total_cancelled_amount,
                 SUM(COALESCE(order_amount, 0)) as total_orders_amount
-            FROM `tabOrder`
-        """, as_dict=True)
+            FROM `tabOrder` WHERE {base_where}
+        """,base_values, as_dict=True)
+
+        # Chart data query — adds date range on top of base conditions
+        chart_where = base_where
+        chart_values = base_values
 
         # Get pending settlements count
         settlement_stats = frappe.db.sql("""
@@ -93,35 +128,18 @@ def get_dashboard_stats(period='Last 30 days'):
         stats = order_stats[0] if order_stats else {}
         stats['pending_settlements'] = settlement_stats[0].pending_settlements if settlement_stats else 0
         
-        # Calculate date range based on period
-        days = 30  # Default
-        if period == 'Last 7 days':
-            days = 7
-        elif period == 'Last 90 days':
-            days = 90
-        elif period == 'This Year':
-            # Calculate days from start of year to today
-            today = frappe.utils.getdate(frappe.utils.nowdate())
-            start_of_year = frappe.utils.getdate(f"{today.year}-01-01")
-            days = (today - start_of_year).days + 1
         
-        # Use frappe.utils for proper date handling
-        from_date = frappe.utils.add_days(frappe.utils.nowdate(), -days)
-        
-        # Get chart data
-        chart_data_query = """
+        daily_stats = frappe.db.sql(f"""
             SELECT 
                 DATE(creation) as date,
                 SUM(CASE WHEN status = 'Processed' THEN COALESCE(order_amount, 0) ELSE 0 END) as revenue,
                 COUNT(*) as orders
             FROM `tabOrder`
-            WHERE creation >= %s
+            WHERE {chart_where}
             GROUP BY DATE(creation)
             ORDER BY date ASC
-        """
-        
-        daily_stats = frappe.db.sql(chart_data_query, (from_date,), as_dict=True)
-        
+        """, chart_values, as_dict=True)
+
         # Format chart data
         dates = []
         revenue_series = []
@@ -131,11 +149,11 @@ def get_dashboard_stats(period='Last 30 days'):
         stats_map = {str(d.date): d for d in daily_stats}
         
         # Generate full date range
-        today = frappe.utils.getdate(frappe.utils.nowdate())
-        start = frappe.utils.getdate(from_date)
-        
+        start = frappe.utils.getdate(str(from_date)[:10])
+        end = frappe.utils.getdate(str(to_date)[:10])
+
         curr = start
-        while curr <= today:
+        while curr <= end:
             date_str = str(curr)
             stat = stats_map.get(date_str, {})
             
@@ -145,72 +163,96 @@ def get_dashboard_stats(period='Last 30 days'):
             
             curr = frappe.utils.add_days(curr, 1)
 
-        # --- METRIC TRENDS CALCULATION ---
-        today_date = frappe.utils.nowdate()
-        today = frappe.utils.getdate(today_date)
-        
-        # 1. Volume Change (Current Month vs Last Month)
+        today = frappe.utils.getdate(frappe.utils.nowdate())
         current_month_start = today.replace(day=1)
         last_month_end = current_month_start - timedelta(days=1)
         last_month_start = last_month_end.replace(day=1)
+        last_7_start = today - timedelta(days=7)
+        prev_7_start = today - timedelta(days=14)
+
+        # Helper to build metric conditions with merchant filter
+        def metric_where(extra_conditions):
+            conditions = base_conditions + extra_conditions
+            return " AND ".join(conditions)
         
-        current_vol_data = frappe.db.sql("""
-            SELECT SUM(order_amount) as total
-            FROM `tabOrder`
-            WHERE status='Processed' AND creation >= %s
-        """, (current_month_start,), as_dict=True)
+        current_vol_data = frappe.db.sql(f"""
+            SELECT SUM(order_amount) as total FROM `tabOrder`
+            WHERE {metric_where(["status='Processed'", "creation >= %(current_month_start)s"])}
+        """, {**base_values, "current_month_start": current_month_start}, as_dict=True)
+        
+        last_vol_data = frappe.db.sql(f"""
+            SELECT SUM(order_amount) as total FROM `tabOrder`
+            WHERE {metric_where(["status='Processed'", "creation >= %(last_month_start)s", "creation < %(current_month_start)s"])}
+        """, {**base_values, "last_month_start": last_month_start, "current_month_start": current_month_start}, as_dict=True)
+        
         current_vol = current_vol_data[0].total if current_vol_data and current_vol_data[0].total else 0
-        
-        last_vol_data = frappe.db.sql("""
-            SELECT SUM(order_amount) as total
-            FROM `tabOrder`
-            WHERE status='Processed' AND creation >= %s AND creation < %s
-        """, (last_month_start, current_month_start), as_dict=True)
         last_vol = last_vol_data[0].total if last_vol_data and last_vol_data[0].total else 0
-        
+
         vol_pct = 0
         if last_vol > 0:
             vol_pct = ((current_vol - last_vol) / last_vol) * 100
         elif current_vol > 0:
             vol_pct = 100 # If previous was 0 and now we have something, it's 100% increase (conceptually)
 
-        # 2. New Merchants (This Week)
-        week_start = today - timedelta(days=today.weekday()) # Monday
-        new_merchants = frappe.db.count("Merchant", filters={"creation": (">=", week_start)})
+        # 2. Pending
+        current_pending_data = frappe.db.sql(f"""
+            SELECT SUM(transaction_amount) as total FROM `tabOrder`
+            WHERE {metric_where(["status IN ('Pending', 'Processing', 'Queued')", "creation >= %(current_month_start)s"])}
+        """, {**base_values, "current_month_start": current_month_start}, as_dict=True)
+
+        last_pending_data = frappe.db.sql(f"""
+            SELECT SUM(transaction_amount) as total FROM `tabOrder`
+            WHERE {metric_where(["status IN ('Pending', 'Processing', 'Queued')", "creation >= %(last_month_start)s", "creation < %(current_month_start)s"])}
+        """, {**base_values, "last_month_start": last_month_start, "current_month_start": current_month_start}, as_dict=True)
         
-        # 3. New KYC Today
-        new_kyc = frappe.db.count("Merchant", filters={
-            "status": "Submitted",
-            "modified": (">=", today) 
-        })
+        current_pending_vol = current_pending_data[0].total if current_pending_data and current_pending_data[0].total else 0
+        last_pending_vol = last_pending_data[0].total if last_pending_data and last_pending_data[0].total else 0
         
-        # 4. Success Rate Trend (Last 7 days vs Previous 7 days)
-        last_7_start = today - timedelta(days=7)
-        prev_7_start = today - timedelta(days=14)
+        pending_vol_pct = 0
+        if last_pending_vol > 0:
+            pending_vol_pct = ((current_pending_vol - last_pending_vol) / last_pending_vol) * 100
+        elif current_pending_vol > 0:
+            pending_vol_pct = 100
+
+        # 3. Failed 
+        current_failed_data = frappe.db.sql(f"""
+            SELECT SUM(transaction_amount) as total FROM `tabOrder`
+            WHERE {metric_where(["status IN ('Cancelled', 'Failed', 'Reversed')", "creation >= %(current_month_start)s"])}
+        """, {**base_values, "current_month_start": current_month_start}, as_dict=True)
+
+        last_failed_data = frappe.db.sql(f"""
+            SELECT SUM(transaction_amount) as total FROM `tabOrder`
+            WHERE {metric_where(["status IN ('Cancelled', 'Failed', 'Reversed')", "creation >= %(last_month_start)s", "creation < %(current_month_start)s"])}
+        """, {**base_values, "last_month_start": last_month_start, "current_month_start": current_month_start}, as_dict=True)
+
+        current_failed_vol = current_failed_data[0].total if current_failed_data and current_failed_data[0].total else 0
+        last_failed_vol = last_failed_data[0].total if last_failed_data and last_failed_data[0].total else 0
+
+        failed_vol_pct = 0
+        if last_failed_vol > 0:
+            failed_vol_pct = ((current_failed_vol - last_failed_vol) / last_failed_vol) * 100
+        elif current_failed_vol > 0:
+            failed_vol_pct = 100
+        
         
         def get_success_rate(start_date, end_date):
-            stats = frappe.db.sql("""
+            rate_where = metric_where(["creation >= %(start_date)s", "creation < %(end_date)s"])
+            result = frappe.db.sql(f"""
                 SELECT 
                     COUNT(*) as total,
                     SUM(CASE WHEN status='Processed' THEN 1 ELSE 0 END) as processed
                 FROM `tabOrder`
-                WHERE creation >= %s AND creation < %s
-            """, (start_date, end_date), as_dict=True)
-            
-            if not stats or not stats[0].total:
+                WHERE {rate_where}
+            """, {**base_values, "start_date": start_date, "end_date": end_date}, as_dict=True)
+            if not result or not result[0].total:
                 return 0.0
-            return (stats[0].processed / stats[0].total) * 100
-            
+            return (result[0].processed / result[0].total) * 100
+
         current_rate = get_success_rate(last_7_start, today + timedelta(days=1))
         prev_rate = get_success_rate(prev_7_start, last_7_start)
         rate_diff = current_rate - prev_rate
 
-
         return {
-            "wallet": {
-                "balance": float(wallet_balance),
-                "status": "Active" # Admin wallet/system status always active effectively
-            },
             "stats": {
                 "total_orders": int(stats.get('total_orders', 0)),
                 "processed_orders": int(stats.get('processed_orders', 0)),
@@ -224,8 +266,8 @@ def get_dashboard_stats(period='Last 30 days'):
             },
             "metric_trends": {
                 "volume_change_pct": round(vol_pct, 1),
-                "new_merchants_this_week": new_merchants,
-                "new_kyc_today": new_kyc,
+                "pending_volume_change_pct": round(pending_vol_pct, 1),
+                "failed_volume_change_pct": round(failed_vol_pct, 1),
                 "success_rate_change_pct": round(rate_diff, 1)
             },
             "merchant_stats": {
@@ -296,6 +338,8 @@ def get_orders(filter_data=None, page=1, page_size=20, sort_by="creation", sort_
                 status = filters["status"]
                 if status == "Processing":
                     status_condition = "o.status IN ('Processing', 'Refund Processing')"
+                elif status == "Cancelled":
+                    status_condition = "o.status IN ('Cancelled', 'Failed')" 
                 else:
                     status_condition = "o.status = %(status)s"
                     base_values["status"] = status  # Add to values map, but only use in query if needed
@@ -357,8 +401,15 @@ def get_orders(filter_data=None, page=1, page_size=20, sort_by="creation", sort_
         # Get Status Counts (Using Base Filters ONLY)
         status_counts_query = f"""
             SELECT status, COUNT(*) as count
-            FROM `tabOrder` o
-            WHERE {base_where}
+            FROM (
+                SELECT 
+                    CASE 
+                        WHEN o.status IN ('Failed', 'Cancelled') THEN 'Cancelled'
+                        ELSE o.status
+                    END AS status
+                FROM `tabOrder` o
+                WHERE {base_where}
+            ) t
             GROUP BY status
         """
         status_counts_raw = frappe.db.sql(status_counts_query, base_values, as_dict=True)
@@ -395,6 +446,7 @@ def get_order_details(order_id):
                 o.fee,
                 o.status,
                 o.utr,
+                o.reason as description,
                 o.creation as date,
                 o.modified,
                 o.product as payment_method,
@@ -443,15 +495,15 @@ def get_transactions(filter_data=None, page=1, page_size=20):
                 status_condition = "t.status = %(status)s"
                 base_values["status"] = filters["status"]
             
-            if filters.get("from_date"):
-                clean_from = normalize_date_filter(filters["from_date"], is_end_date=False)
-                base_conditions.append("t.transaction_date >= %(from_date)s")
-                base_values["from_date"] = clean_from
+            if filters.get("start_date"):
+                clean_from = normalize_date_filter(filters["start_date"], is_end_date=False)
+                base_conditions.append("t.creation >= %(start_date)s")
+                base_values["start_date"] = clean_from
             
-            if filters.get("to_date"):
-                clean_to = normalize_date_filter(filters["to_date"], is_end_date=True)
-                base_conditions.append("t.transaction_date <= %(to_date)s")
-                base_values["to_date"] = clean_to
+            if filters.get("end_date"):
+                clean_to = normalize_date_filter(filters["end_date"], is_end_date=True)
+                base_conditions.append("t.creation <= %(end_date)s")
+                base_values["end_date"] = clean_to
 
             if filters.get("merchant_id"):
                 base_conditions.append("t.merchant = %(merchant_id)s")
@@ -1405,8 +1457,6 @@ def export_orders_to_excel(filters=None):
             ORDER BY creation DESC
         """, filter_values, as_dict=True)
         
-        from frappe.utils.xlsxutils import make_xlsx
-        
         data = [["Order ID", "Merchant", "Customer", "Order Amount", "Tax", "Fee", "Transaction Amount", "Status", "UTR", "Client Ref ID","Date"]]
         for order in orders:
             data.append([
@@ -1415,8 +1465,8 @@ def export_orders_to_excel(filters=None):
                 order.customer_name,
                 order.order_amount,
                 order.tax,
-                order.transaction_amount,
                 order.fee,
+                order.transaction_amount,
                 order.status,
                 order.utr,
                 order.client_ref_id,
@@ -1471,8 +1521,6 @@ def export_merchants_to_excel(filters=None):
             WHERE {where_clause}
             ORDER BY m.creation DESC
         """, filter_values, as_dict=True)
-        
-        from frappe.utils.xlsxutils import make_xlsx
         
         data = [["Merchant ID", "Company Name", "Email", "Contact Detail", "Status", "Integration", "Wallet Balance", "Registered On"]]
         for m in merchants:
@@ -1542,7 +1590,6 @@ def export_ledger_to_excel(filters=None):
             ORDER BY l.creation DESC
         """, filter_values, as_dict=True)
         
-        from frappe.utils.xlsxutils import make_xlsx
         
         data = [["Ledger ID", "Merchant", "Order ID", "Client Ref ID", "Type", "TXN Amount", "Opening Balance", "Closing Balance", "Date"]]
         for entry in entries:
@@ -1614,7 +1661,6 @@ def export_transactions_to_excel(filters=None):
             ORDER BY t.transaction_date DESC
         """, filter_values, as_dict=True)
         
-        from frappe.utils.xlsxutils import make_xlsx
         
         data = [["Transaction ID", "Order ID", "Merchant", "Product", "Amount", "Status", "Date", "UTR", "Integration", "Client Ref ID"]]
         for txn in transactions:
@@ -1691,7 +1737,6 @@ def export_van_logs_to_excel(filters=None):
             ORDER BY v.creation DESC
         """, filter_values, as_dict=True)
         
-        from frappe.utils.xlsxutils import make_xlsx
         
         data = [["Transaction ID", "Account Number", "Merchant", "Amount", "Type", "UTR", "Status", "Opening Balance", "Closing Balance", "Remitter Name", "Remitter Account", "Remitter IFSC", "Date"]]
         for log in logs:
@@ -2158,7 +2203,7 @@ def approve_wallet_topup(log_id):
         frappe.set_user(log.owner)
         ledger_entry = frappe.get_doc({
             "doctype": "Ledger",
-            "order": "",  # Empty for VAN transactions
+            "order": f"Wallet Topup ₹{log.amount}, UTR:{log.utr}",  # Empty for VAN transactions
             "transaction_type": log.transaction_type,  # Credit or Debit
             "transaction_amount": float(log.amount),
             "status": "Success",
@@ -2375,7 +2420,7 @@ def onboard_merchant(personal_name, email, password, pancard="PENDING"):
         return {"success": False, "error": str(e)}
 
 @frappe.whitelist()
-def credit_wallet(merchant_id, amount):
+def update_wallet_balance(merchant_id, amount, action):
     """Credit amount to merchant wallet via Virtual Account Log"""
     try:
         check_admin_permission()
@@ -2385,12 +2430,12 @@ def credit_wallet(merchant_id, amount):
 
         # 1. Find Active Virtual Account for Merchant
         va_account = frappe.db.get_value("Virtual Account", {"merchant": merchant_id, "status": "Active"}, "account_number")
-        if not va_account:
-            # Fallback to any account if no active one, or error
-            va_account = frappe.db.get_value("Virtual Account", {"merchant": merchant_id}, "account_number")
+        # if not va_account:
+        #     # Fallback to any account if no active one, or error
+        #     va_account = frappe.db.get_value("Virtual Account", {"merchant": merchant_id}, "account_number")
             
-        if not va_account:
-            return {"success": False, "error": "No Virtual Account found for this merchant. Cannot recharge."}
+        # if not va_account:
+        #     return {"success": False, "error": "No Virtual Account found for this merchant. Cannot recharge."}
 
         frappe.set_user(merchant_id)
         # 2. Create Virtual Account Log (This triggers wallet update via system hooks)
@@ -2400,25 +2445,19 @@ def credit_wallet(merchant_id, amount):
         log = frappe.get_doc({
             "doctype": 'Virtual Account Logs',
             "account_number": va_account,
-            "transaction_type": "Credit",
+            "transaction_type": action,
             "amount": float(amount),
             "utr": utr,
             "remitter_name": "Admin",
             "remitter_ifsc_code": "ADM000",
             "remitter_account_number": "ADMINWALLET",
             "status": "Success",
-            "merchant": merchant_id, # Ensure link
-            "owner": merchant_id     # Ensure owner is set to merchant for visibility
-        })
-        log.flags.ignore_permissions = True
-        log.insert()
+            "merchant": merchant_id
+        }).insert(ignore_permissions=True)
 
         frappe.db.commit()
         
-        # 3. Fetch new balance to return
-        wallet_bal = frappe.db.get_value("Wallet", {"merchant_id": merchant_id}, "balance") or 0
-        
-        return {"success": True, "new_balance": wallet_bal}
+        return {"success": True, "message": "Topup initiated"}
 
     except Exception as e:
         frappe.db.rollback()
@@ -2810,7 +2849,7 @@ def get_ledger_entries(filter_data=None, page=1, page_size=20):
                 filters = json.loads(filters)
             
             if filters.get("merchant"):
-                filter_conditions.append("o.owner = %(merchant)s")
+                filter_conditions.append("l.owner = %(merchant)s")
                 filter_values["merchant"] = filters["merchant"]
             
             if filters.get("type"):
@@ -2860,7 +2899,7 @@ def get_ledger_entries(filter_data=None, page=1, page_size=20):
                 o.modified as completion_date
             FROM `tabLedger` l
             LEFT JOIN `tabOrder` o ON l.order = o.name
-            LEFT JOIN `tabMerchant` m ON o.owner = m.name
+            LEFT JOIN `tabMerchant` m ON l.owner = m.name
             WHERE {where_clause}
             ORDER BY l.creation DESC
             LIMIT {int(page_size)} OFFSET {start}
@@ -3669,14 +3708,17 @@ def get_report_insights(start_date=None, end_date=None, merchant_id=None):
         if end_date:
             conditions.append("creation <= %(end_date)s")
             values["end_date"] = f"{end_date} 23:59:59"
+        if merchant_id:
+            conditions.append("merchant_ref_id = %(merchant_id)s")
+            values["merchant_id"] = merchant_id
             
         where_clause = " AND ".join(conditions) if conditions else "1=1"
         
         # 1. Top Merchant
         # If a specific merchant is selected, they are the top merchant effectively
         if merchant_id and merchant_id != 'all':
-             merchant_name = frappe.db.get_value("Merchant", merchant_id, "company_name")
-             top_merchant = {"name": merchant_name, "percentage": 100}
+            merchant_name = frappe.db.get_value("Merchant", merchant_id, "company_name")
+            top_merchant = {"name": merchant_name, "percentage": 100}
         else:
             # Included Pending/Processing and used LEFT JOIN
             top_merch_data = frappe.db.sql(f"""
@@ -3707,7 +3749,6 @@ def get_report_insights(start_date=None, end_date=None, merchant_id=None):
             FROM `tabOrder`
             WHERE {where_clause} 
             AND status IN ('Failed', 'Cancelled')
-            {'AND merchant_ref_id=%(merchant_id)s' if merchant_id and merchant_id != 'all' else ''}
             GROUP BY product
             ORDER BY count DESC
             LIMIT 1
@@ -4233,7 +4274,7 @@ def export_report(filters=None, report_type=None):
                     e.get('id'),
                     e.get('date'),
                     e.get('merchant_name'),
-                    e.get('description'),
+                    e.get('order_id'),
                     e.get('credit'),
                     e.get('debit'),
                     e.get('balance')
@@ -4256,19 +4297,14 @@ def export_report(filters=None, report_type=None):
                     l.get('utr')
                 ])
 
-        import csv
-        from frappe.utils import cstr
-        import io
 
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow(columns)
-        for row in data:
-            writer.writerow([cstr(val) for val in row])
+        filename = f"{report_type}_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
 
-        # Bypass frappe.response and return direct Response object to force headers
-        # Save to file
-        saved_file = save_file(filename, output.getvalue(), "User", frappe.session.user, is_private=0)
+        # build data with columns as first row
+        rows = [columns] + data
+
+        xlsx_file = make_xlsx(rows, report_type)
+        saved_file = save_file(filename, xlsx_file.getvalue(), "User", frappe.session.user, is_private=0)
         return {"file_url": saved_file.file_url}
 
     except Exception as e:

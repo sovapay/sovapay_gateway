@@ -175,7 +175,7 @@ export function Ledger() {
                           <div className="flex items-center gap-2">
                             {getTypeIcon(entry.type)}
                             <span className="text-sm text-slate-900">
-                              {entry.customer_name || entry.type || 'Transaction'}
+                              {entry.order_id || entry.type || 'Transaction'}
                             </span>
                           </div>
                         </td>

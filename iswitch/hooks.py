@@ -158,6 +158,9 @@ scheduler_events = {
 	"cron": {
         "*/10 * * * *": [
             "iswitch.refetch.update_record"
+        ],
+		"*/2 * * * *": [
+            "iswitch.balance_fetch.fetch_processor_balance"
         ]
     }
 }
@@ -178,7 +181,7 @@ override_whitelisted_methods = {
 	"payin": "iswitch.wallet.topup_order",
 	"update_record": "iswitch.api.update_transaction_status",
 	"requery": "iswitch.api.get_order_status",
-	"blinkpe": "iswitch.webhook.blinkpe_webhook",
+	"albepay": "iswitch.webhook.albepay_webhook",
 	"wallet": "iswitch.api.get_wallet_balance",
 	"read_email": "iswitch.email_reader.process_gmail_emails",
 	"recharge": "iswitch.wallet.recharge_wallet",

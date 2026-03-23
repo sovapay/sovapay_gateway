@@ -1,7 +1,7 @@
 // Copyright (c) 2025, Blinkpe and contributors
 // For license information, please see license.txt
 
-// frappe.ui.form.on("Blinkpe Webhook", {
+// frappe.ui.form.on("SovaPay Webhook", {
 // 	refresh(frm) {
 
 // 	},

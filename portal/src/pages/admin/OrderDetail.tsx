@@ -152,6 +152,12 @@ export function AdminOrderDetail() {
                                         {order.utr || '-'}
                                     </p>
                                 </div>
+                                <div>
+                                    <p className="text-xs text-slate-500 mb-1">Description</p>
+                                    <p className="text-sm font-medium text-slate-900">
+                                        {order.description || '-'}
+                                    </p>
+                                </div>
                             </div>
                         </Card>
 

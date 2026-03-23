@@ -11,167 +11,33 @@ from iswitch.tigerbeetle_client import get_client
 from Crypto.Hash import HMAC, SHA256
 from decimal import Decimal
 
-def handle_transaction_failure(name, status, error_message):
-    """
-    Void authorized (pending) transfer on failure webhook.
-    """
-    try:
-        doc = frappe.get_doc("Order", name)
-        transaction = frappe.get_doc("Transaction", {"order": name})
-        if transaction.docstatus == 1:
-            frappe.throw("Transaction already processed")
-
-        merchant = frappe.get_doc("Merchant", doc.merchant_ref_id)
-
-        frappe.set_user(doc.merchant_ref_id)
-
-        client = get_client()
-
-        merchant_account_id = int(merchant.tigerbeetle_id)
-        system_account_id = 1
-        amount = int(Decimal(doc.transaction_amount) * 100)
-
-        auth_transfer_id = stable_id(f"auth-{doc.name}")
-        void_transfer_id = stable_id(f"void-{doc.name}")
-
-        # 🔹 1️⃣ Balance BEFORE void
-        acc_before = client.lookup_accounts([merchant_account_id])[0]
-
-        opening_balance = (
-            acc_before.credits_posted
-            - acc_before.debits_posted
-            - acc_before.debits_pending
-        ) / 100
-
-        # 🔹 2️⃣ VOID pending transfer
-        void_transfer = tb.Transfer(
-            id=void_transfer_id,
-            debit_account_id=merchant_account_id,
-            credit_account_id=system_account_id,
-            amount=amount,
-            pending_id=auth_transfer_id,
-            user_data_128=0,
-            user_data_64=0,
-            user_data_32=0,
-            timeout=0,
-            ledger=1,
-            code=400,
-            flags=tb.TransferFlags.VOID_PENDING_TRANSFER,
-            timestamp=0,
+from iswitch.order_webhook_handlers import (
+            handle_transaction_failure,
+            handle_transaction_success
         )
 
-        errors = client.create_transfers([void_transfer])
-        if errors:
-            error = errors[0]
-            if error.result != tb.CreateTransferResult.EXISTS:
-                frappe.throw(f"Void failed: {error.result}")
-
-        # 🔹 3️⃣ Balance AFTER void
-        acc_after = client.lookup_accounts([merchant_account_id])[0]
-
-        closing_balance = (
-            acc_after.credits_posted
-            - acc_after.debits_posted
-            - acc_after.debits_pending
-        ) / 100
-
-        # 🔹 Update Order
-        doc.status = status
-        doc.reason = error_message[:100]
-        doc.save(ignore_permissions=True)
-
-        # 🔹 Update Transaction
-        
-        transaction.status = status
-        transaction.save(ignore_permissions=True)
-        transaction.submit()
-
-        # 🔹 Create Reversal Ledger Entry
-        ledger = frappe.get_doc({
-            "doctype": "Ledger",
-            "order": doc.name,
-            "transaction_type": "Credit",
-            "status": status,
-            "transaction_id": transaction.name,
-            "client_ref_id": doc.client_ref_id,
-            "opening_balance": opening_balance,
-            "closing_balance": closing_balance
-        }).insert(ignore_permissions=True)
-
-        ledger.submit()
-        
-    except Exception as e:
-        # frappe.db.rollback(save_point="webhook_process")
-        frappe.log_error("Void Error", str(e))
-        raise
-
-def handle_transaction_success(name, transaction_reference_id):
-    """
-    Capture authorized (pending) transfer on success webhook.
-    """
-    try:
-        doc = frappe.get_doc("Order", name)
-
-        transaction = frappe.get_doc("Transaction", {"order": name})
-        if transaction.docstatus == 1:
-            frappe.throw("Transaction already processed")
-
-        merchant = frappe.get_doc("Merchant", doc.merchant_ref_id)
-
-        if not merchant.tigerbeetle_id:
-            frappe.throw("Merchant TB account missing")
-
-        frappe.set_user(doc.merchant_ref_id)
-
-        client = get_client()
-
-        merchant_account_id = int(merchant.tigerbeetle_id)
-        system_account_id = 1
-        amount = int(Decimal(doc.transaction_amount) * 100)
-
-        # 🔐 Deterministic IDs
-        auth_transfer_id = stable_id(f"auth-{doc.name}")
-        capture_transfer_id = stable_id(f"capture-{doc.name}")
-
-        # 🔹 POST pending transfer (Capture)
-        capture = tb.Transfer(
-            id=capture_transfer_id,
-            debit_account_id=merchant_account_id,
-            credit_account_id=system_account_id,
-            amount=amount,
-            pending_id=auth_transfer_id,
-            user_data_128=0,
-            user_data_64=0,
-            user_data_32=0,
-            timeout=0,
-            ledger=1,
-            code=400,
-            flags=tb.TransferFlags.POST_PENDING_TRANSFER,
-            timestamp=0,
-        )
-
-        errors = client.create_transfers([capture])
-
-        if errors:
-            error = errors[0]
-            if error.result != tb.CreateTransferResult.EXISTS:
-                frappe.throw(f"Capture failed: {error.result}")
-
-        # 🔹 Update Order
-        doc.status = "Processed"
-        doc.utr = transaction_reference_id
-        doc.save(ignore_permissions=True)
-
-        transaction.status = "Success"
-        transaction.transaction_reference_id = transaction_reference_id
-        transaction.save(ignore_permissions=True)
-        transaction.submit()
-
-    except Exception as e:
-        # frappe.db.rollback(save_point="webhook_process")
-        frappe.log_error("Capture Error", str(e))
-        raise
-
+def generate_hash(merchant_id, parameters, hashing_method, secret_key, key_order):
+    hash_data = str(merchant_id)
+    
+    for key in key_order:
+        value = parameters[key]
+        # Convert to string in JavaScript-like manner
+        if isinstance(value, float) and value.is_integer():
+            # Convert float like 10.0 to "10" (like JavaScript)
+            value_str = str(int(value))
+        else:
+            value_str = str(value)
+        hash_data += '|' + value_str
+    
+    hash_data += '|' + str(secret_key)
+    
+    if len(hash_data) > 0:
+        # Create hash using the specified method
+        hash_obj = hashlib.new(hashing_method)
+        hash_obj.update(hash_data.encode('utf-8'))
+        return hash_obj.hexdigest().lower()
+    
+    return None
 
 def handle_transaction(doc):
     try:
@@ -292,86 +158,68 @@ def other_transaction_processing(doc,transaction):
         utr = ""
         crn = ""
         
-        if processor.name == "Rabi Pay":
+        if processor.name == "PAYPROCESS2603160001":
             
-            payload = {
-                "order_id": doc.name,
-                "payment_method": doc.product,
-                "account_holder_name": doc.customer_name,
-                "bank_name": doc.bank,
-                "account_number": doc.customer_account_number,
-                "ifsc_code": doc.ifsc,
-                "mobile": "9999999999",
-                "amount": int(doc.order_amount),
-                "account_type": "saving",
-                "reason": "Payout"
-            }
-            
-            # Step 1 & 2: Convert to JSON string without formatting (no spaces)
-            raw_body = json.dumps(payload, separators=(',', ':'), ensure_ascii=False)
-            
-            # Step 3 & 4: Generate HMAC SHA-256 signature in HEX format
+            merchant_id = processor.get_password("client_id")
             secret_key = processor.get_password("secret_key")
-            hmac_obj = HMAC.new(
-                secret_key.encode("utf-8"), 
-                raw_body.encode("utf-8"), 
-                SHA256
-            )
-            signature = hmac_obj.hexdigest()
-
-            # Step 5: Pass signature in header
             headers = {
-                "Content-Type": "application/json",  # No trailing space!
-                "rabipay-client-id": processor.get_password("client_id"),
-                "rabipay-signature": signature
+                "merchantID": merchant_id,
+                "secretKey": secret_key
             }
 
-            url = processor.api_endpoint.rstrip("/") + "/payout"
-            
-            # Send request with raw body as bytes
-            api_response = requests.post(
-                url, 
-                headers=headers, 
-                data=raw_body.encode('utf-8'),
-                timeout=30
-            )
+            payload = {
+                "name": doc.customer_name,
+                "bankName": "Dummy",
+                "bankBranch": "Dummy",
+                "accountNumber": doc.customer_account_number,
+                "ifsc": doc.ifsc,
+                "amount": doc.order_amount,
+                "remarks": "payout",
+                "paymentMode": doc.product,
+                "paymentReferenceNo" : doc.name
+            }
 
+            key_order = [
+                "name", "bankName", "bankBranch", "accountNumber", 
+                "ifsc", "amount", "remarks", "paymentMode", "paymentReferenceNo"
+            ]
+            generated_hash = generate_hash(merchant_id, payload, 'sha512', secret_key, key_order)
+            payload['hash'] = generated_hash
+            
+            url = processor.api_endpoint.rstrip("/")+ "/create-payout-transaction"
+            
+            response = requests.post(url, headers = headers, json = payload)
+
+            api_response = None
             try:
-                api_data = api_response.json()
-                frappe.log_error("API Response", api_data)
-                txn_status = api_data.get("status")
-                remark = api_data.get("message")
-
-                if txn_status == "success":
-                    status = "Success"
-                elif txn_status == "failed":
-                    status = "Failed"
-                
+                api_response = response.json()
+                frappe.log_error("AlbePay API Response",api_response)
             except Exception as e:
-                frappe.log_error("API Response Error", api_response.text)
-        elif processor.name == "PAYPROCESS2603090008":
-            customer_id = frappe.db.get_value(
-                "Customer",
-                {"account_number": doc.customer_account_number},
-                "customer_id"
-            )
-            headers = {
-                "Authorization": "Basic <Base64Encoded(username:password)>"
-            }
-            customer_id = get_or_create_customer(doc, processor, headers)
+                frappe.log_error("AlbePay invalid json Response", response.text)
 
-            api_response = create_payout_order(doc, processor, headers, customer_id)
+            remark = api_response.get("message","")
+            status_flag = api_response.get("success")
             
-            if api_response.get("code") == "0x0200":
-                remark = api_response.get("message","")
-                if api_response.get("status") == "SUCCESS":
-                    crn = api_response.get("data",{}).get("orderRefId")
+            if not status_flag:
+                status = "Failed"
+                errors = api_response.get("errors") or []
+                if errors:
+                    remark = errors[0].get("msg", "")
+            else:
+                api_data = api_response.get("data",{})
+                api_status = api_data.get("updatedStatus","")
+                crn = api_data.get("clientRefNo","")
 
-        if status == "Failed" or status == "Reversed":
+                if api_status == "Failure":
+                    status = "Failed"
+                elif api_status == "Success":
+                    status = "Success"
+
+        if status == "Failed":
             handle_transaction_failure(doc.name, status, remark)
 
         elif status == "Success":
-            handle_transaction_success(doc.name, utr)
+            handle_transaction_success(doc.name, status, utr)
         
         elif status == "Pending":
             txn = frappe.db.get_value("Transaction",{"order":doc.name, "merchant":doc.merchant_ref_id}, "name")
@@ -384,6 +232,7 @@ def other_transaction_processing(doc,transaction):
             transaction.save(ignore_permissions=True)
 
             doc.utr = utr
+            doc.processor_order_id = crn
             doc.save(ignore_permissions=True)
             
     except Exception as e:

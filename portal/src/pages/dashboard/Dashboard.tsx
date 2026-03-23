@@ -172,7 +172,7 @@ export function Dashboard() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
-            title="Total Revenue"
+            title="Total Volume"
             value={formatCurrency(todayRevenue)}
             icon={DollarSign}
             change={`${(dashboardStats?.metric_trends?.volume_change_pct || 0) > 0 ? '+' : ''}${dashboardStats?.metric_trends?.volume_change_pct || 0}%`}

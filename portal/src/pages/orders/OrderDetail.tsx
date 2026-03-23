@@ -140,6 +140,12 @@ export function OrderDetail() {
                     {order.utr || '-'}
                   </p>
                 </div>
+                <div>
+                  <p className="text-xs text-slate-500 mb-1">Description</p>
+                  <p className="text-sm font-medium text-slate-900">
+                    {order.description || '-'}
+                  </p>
+                </div>
               </div>
             </Card>
 
@@ -161,7 +167,7 @@ export function OrderDetail() {
                 <div className="pt-3 border-t border-slate-200 flex justify-between">
                   <span className="text-base font-medium text-slate-900">Total</span>
                   <span className="text-base font-semibold text-slate-900">
-                    {formatCurrency((order.transaction_amount || order.amount) + (order.fee || 0) + (order.tax || 0))}
+                    {formatCurrency((order.amount) + (order.fee || 0) + (order.tax || 0))}
                   </span>
                 </div>
               </div>
@@ -221,7 +227,7 @@ export function OrderDetail() {
                   <div className="flex gap-3">
                     <div className="w-2 h-2 rounded-full bg-primary-500 mt-2" />
                     <div>
-                      <p className="text-sm font-medium text-slate-900">Last updated</p>
+                      <p className="text-sm font-medium text-slate-900">{order.status}</p>
                       <p className="text-xs text-slate-500">
                         {formatDateTime(order.modified)}
                       </p>

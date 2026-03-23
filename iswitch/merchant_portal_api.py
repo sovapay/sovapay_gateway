@@ -54,10 +54,7 @@ def get_dashboard_stats():
                 SUM(CASE WHEN status = 'Processed' THEN 1 ELSE 0 END) as processed_orders,
                 SUM(CASE WHEN status IN ('Pending', 'Processing', 'Queued') THEN 1 ELSE 0 END) as pending_orders,
                 SUM(CASE WHEN status IN ('Cancelled', 'Reversed', 'Failed') THEN 1 ELSE 0 END) as cancelled_orders,
-                SUM(CASE WHEN status = 'Processed' THEN COALESCE(order_amount, 0) ELSE 0 END) as total_processed_amount,
-                SUM(CASE WHEN status IN ('Pending', 'Processing', 'Queued') THEN COALESCE(order_amount, 0) ELSE 0 END) as total_pending_amount,
-                SUM(CASE WHEN status IN ('Cancelled', 'Reversed', 'Failed') THEN COALESCE(order_amount, 0) ELSE 0 END) as total_cancelled_amount,
-                SUM(COALESCE(order_amount, 0)) as total_orders_amount
+                SUM(CASE WHEN status = 'Processed' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as total_processed_amount
             FROM `tabOrder`
             WHERE merchant_ref_id = %s
         """, (merchant_id,), as_dict=True)
@@ -74,10 +71,7 @@ def get_dashboard_stats():
                 "processed_orders": int(stats.get('processed_orders') or 0),
                 "pending_orders": int(stats.get('pending_orders') or 0),
                 "cancelled_orders": int(stats.get('cancelled_orders') or 0),
-                "total_processed_amount": float(stats.get('total_processed_amount') or 0),
-                "total_pending_amount": float(stats.get('total_pending_amount') or 0),
-                "total_cancelled_amount": float(stats.get('total_cancelled_amount') or 0),
-                "total_orders_amount": float(stats.get('total_orders_amount') or 0)
+                "total_processed_amount": float(stats.get('total_processed_amount') or 0)
             },
             "metric_trends": get_metric_trends(merchant_id)
         }
@@ -211,8 +205,8 @@ def get_orders(filter_data=None, page=1, page_size=20, sort_by="creation", sort_
                 # Map "Pending" to include both "Pending" and "Processing"
                 if status_value == "Pending":
                     filter_conditions.append("(o.status = 'Pending' OR o.status = 'Processing')")
-                elif status_value == "Processed":
-                    filter_conditions.append("(o.status = 'Processed' OR o.status = 'Success' OR o.status = 'Paid')")
+                elif status_value == "Cancelled":
+                    filter_conditions.append("(o.status = 'Cancelled' OR o.status = 'Failed')")
                 else:
                     filter_conditions.append("o.status = %(status)s")
                     filter_values["status"] = status_value
@@ -394,6 +388,7 @@ def get_order_details(order_id):
                 o.fee,
                 o.status,
                 o.utr,
+                o.reason as description,
                 o.creation as date,
                 o.modified,
                 o.product as payment_method
@@ -2558,6 +2553,7 @@ def get_transaction_detail(transaction_id):
                 t.transaction_reference_id as utr,
                 t.creation,
                 t.modified,
+                t.remark as description,
                 o.customer_name,
                 o.order_amount,
                 o.fee,

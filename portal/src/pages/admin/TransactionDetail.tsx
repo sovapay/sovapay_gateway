@@ -256,7 +256,7 @@ export function TransactionDetail() {
                                         {formatCurrency(transaction.amount)}
                                     </span>
                                 </div>
-                                {transaction.fee && (
+                                {transaction.fee>=0 && (
                                     <div className="flex justify-between text-sm">
                                         <span className="text-slate-500">Processing fee</span>
                                         <span className="text-slate-900">
@@ -264,10 +264,18 @@ export function TransactionDetail() {
                                         </span>
                                     </div>
                                 )}
+                                {transaction.tax>=0 && (
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-500">Tax fee</span>
+                                        <span className="text-slate-900">
+                                            -{formatCurrency(transaction.tax)}
+                                        </span>
+                                    </div>
+                                )}
                                 <div className="pt-3 border-t border-slate-200 flex justify-between">
                                     <span className="text-sm font-medium text-slate-900">Net</span>
                                     <span className="text-sm font-medium text-slate-900">
-                                        {formatCurrency(transaction.amount - (transaction.fee || 0))}
+                                        {formatCurrency(transaction.amount - (transaction.fee || 0) - (transaction.tax || 0))}
                                     </span>
                                 </div>
                             </div>

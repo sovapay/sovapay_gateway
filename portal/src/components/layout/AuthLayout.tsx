@@ -33,7 +33,7 @@ export function AuthLayout({ children, title, description }: AuthLayoutProps) {
         <div className="relative">
           <Link to="/" className="flex items-center gap-3">
             {appLogo && (
-              <img src="/files/setl_logo_light.svg" alt="Logo" className="h-12 w-auto object-contain rounded-xl p-1" />
+              <img src="/files/sovapaylogo (1).svg" alt="Logo" className="h-12 w-auto object-contain rounded-xl p-1" />
             ) }
           </Link>
         </div>
@@ -59,7 +59,7 @@ export function AuthLayout({ children, title, description }: AuthLayoutProps) {
           <div className="lg:hidden mb-8">
             <Link to="/" className="flex items-center gap-3">
               {appLogo ? (
-                <img src="/files/setl_logo_light.svg" alt="Logo" className="h-12 w-auto object-contain rounded-xl bg-slate-900 p-1" />
+                <img src="/files/sovapaylogo (1).svg" alt="Logo" className="h-12 w-auto object-contain rounded-xl bg-slate-900 p-1" />
               ) : (
                 <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center">
                   <CreditCard className="w-6 h-6 text-white" />
