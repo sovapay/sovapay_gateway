@@ -353,6 +353,10 @@ def get_orders(filter_data=None, page=1, page_size=20, sort_by="creation", sort_
                 clean_to = normalize_date_filter(filters["to_date"], is_end_date=True)
                 base_conditions.append("o.creation <= %(to_date)s")
                 base_values["to_date"] = clean_to
+
+            if filters.get("order_type"):
+                base_conditions.append("o.order_type = %(order_type)s")
+                base_values["order_type"] = filters["order_type"]
                 
             # Allow admin to filter by specific merchant if needed (future proofing)
             if filters.get("merchant_id"):
@@ -379,6 +383,7 @@ def get_orders(filter_data=None, page=1, page_size=20, sort_by="creation", sort_
         orders_query = f"""
             SELECT 
                 o.name as id,
+                o.order_type,
                 o.merchant_ref_id,
                 m.company_name as merchant_name,
                 o.customer_name as customer,

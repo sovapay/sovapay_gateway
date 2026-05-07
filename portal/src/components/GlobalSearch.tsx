@@ -26,7 +26,6 @@ export function GlobalSearch({ isAdmin = false }: GlobalSearchProps) {
 
     const { call: adminSearch } = useFrappePostCall(adminMethods.globalSearch);
     const { call: getOrders } = useFrappePostCall(merchantMethods.getOrders);
-    const { call: getTransactions } = useFrappePostCall(merchantMethods.getTransactions);
     const { call: getVANLogs } = useFrappePostCall(merchantMethods.getVANLogs);
 
     // Close dropdown when clicking outside
@@ -68,10 +67,9 @@ export function GlobalSearch({ isAdmin = false }: GlobalSearchProps) {
                     const searchResults: SearchResult[] = [];
                     const addedIds = new Set<string>(); // Track added IDs to avoid duplicates
 
-                    // Parallel search across orders, transactions, and VAN logs
-                    const [ordersRes, txnsRes, logsRes] = await Promise.allSettled([
+                    // Parallel search across orders and VAN logs
+                    const [ordersRes, logsRes] = await Promise.allSettled([
                         getOrders({ page: 1, page_size: 5, filter_data: { search: query } }),
-                        getTransactions({ page: 1, page_size: 5, filter_data: { search: query } }),
                         getVANLogs({ page: 1, page_size: 5, filter_data: { search: query } })
                     ]);
 
@@ -84,25 +82,9 @@ export function GlobalSearch({ isAdmin = false }: GlobalSearchProps) {
                                     id: order.id,
                                     title: order.id,
                                     subtitle: `${order.customer || 'N/A'} - ₹${order.amount}`,
-                                    url: `/orders/${order.id}`
+                                    url: `/orders/${order.order_type === 'Topup' ? 'payin' : 'payout'}/${order.id}`
                                 });
                                 addedIds.add(order.id);
-                            }
-                        });
-                    }
-
-                    // Process transactions
-                    if (txnsRes.status === 'fulfilled' && txnsRes.value.message?.transactions) {
-                        txnsRes.value.message.transactions.forEach((txn: any) => {
-                            if (!addedIds.has(txn.id)) {
-                                searchResults.push({
-                                    type: 'transaction',
-                                    id: txn.id,
-                                    title: txn.id,
-                                    subtitle: `₹${txn.amount} - ${txn.status}`,
-                                    url: `/transactions/${txn.id}`
-                                });
-                                addedIds.add(txn.id);
                             }
                         });
                     }
@@ -135,7 +117,7 @@ export function GlobalSearch({ isAdmin = false }: GlobalSearchProps) {
         }, 300);
 
         return () => clearTimeout(timer);
-    }, [query, isAdmin, adminSearch, getOrders, getTransactions, getVANLogs]);
+    }, [query, isAdmin, adminSearch, getOrders, getVANLogs]);
 
     const handleResultClick = (url: string) => {
         navigate(url);
