@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import {
   ArrowLeft, Copy, CheckCircle, User,
@@ -26,6 +26,7 @@ function getStatusBadge(status: string) {
 
 export function OrderDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
 
   // Fetch order details using frappe-react-sdk
@@ -50,9 +51,9 @@ export function OrderDetail() {
       <DashboardLayout>
         <div className="text-center py-12">
           <h2 className="text-lg font-medium text-slate-900">Order not found</h2>
-          <Link to="/orders" className="text-primary-600 hover:text-primary-700 mt-2 inline-block">
+          <button onClick={() => navigate(-1)} className="text-primary-600 hover:text-primary-700 mt-2 inline-block">
             Back to orders
-          </Link>
+          </button>
         </div>
       </DashboardLayout>
     );
@@ -68,12 +69,12 @@ export function OrderDetail() {
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Link
-            to="/orders"
+          <button
+            onClick={() => navigate(-1)}
             className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5 text-slate-600" />
-          </Link>
+          </button>
           <div className="flex-1">
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-semibold text-slate-900">

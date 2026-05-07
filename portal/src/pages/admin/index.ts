@@ -2,8 +2,8 @@ export { AdminDashboard } from './AdminDashboard';
 export { Merchants } from './Merchants';
 export { MerchantDetail } from './MerchantDetail';
 export { KYCReviews } from './KYCReviews';
-export { AdminTransactions } from './AdminTransactions';
-export { AdminOrders } from './AdminOrders';
+export { AdminPayinOrders } from './AdminPayinOrders';
+export { AdminPayoutOrders } from './AdminPayoutOrders';
 export { AdminVANLogs } from './AdminVANLogs';
 export { AdminVirtualAccounts } from './AdminVirtualAccounts';
 // Archived - not implemented with real APIs:

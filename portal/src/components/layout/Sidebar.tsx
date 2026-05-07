@@ -22,8 +22,8 @@ interface NavItem {
 
 const merchantNavItems: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Transactions', href: '/transactions', icon: ArrowLeftRight },
-  { name: 'Orders', href: '/orders', icon: ShoppingCart },
+  { name: 'Payin Orders', href: '/orders/payin', icon: ArrowLeftRight },
+  { name: 'Payout Orders', href: '/orders/payout', icon: ShoppingCart },
   { name: 'Ledger', href: '/ledger', icon: BookOpen },
   { name: 'Settlements', href: '/settlements', icon: Wallet },
   { name: 'Deposit Funds', href: '/wallet/deposit', icon: Building2 },
@@ -45,10 +45,10 @@ const merchantNavItems: NavItem[] = [
 const adminNavItems: NavItem[] = [
   { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
   { name: 'Merchants', href: '/admin/merchants', icon: Building2 },
-  { name: 'Orders', href: '/admin/orders', icon: ShoppingCart },
+  { name: 'Payin Orders', href: '/admin/orders/payin', icon: ArrowLeftRight },
+  { name: 'Payout Orders', href: '/admin/orders/payout', icon: ShoppingCart },
   { name: 'KYC Reviews', href: '/admin/kyc-reviews', icon: FileText },
   { name: 'Reports', href: '/admin/reports', icon: BarChart3 },
-  { name: 'Transactions', href: '/admin/transactions', icon: ArrowLeftRight },
   // Temporarily disabled - not implemented with real APIs:
   // { name: 'Risk Alerts', href: '/admin/risk-alerts', icon: AlertTriangle },
   // { name: 'Users', href: '/admin/users', icon: Users },

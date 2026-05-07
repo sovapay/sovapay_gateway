@@ -229,6 +229,10 @@ def get_orders(filter_data=None, page=1, page_size=20, sort_by="creation", sort_
                 clean_to = filters["to_date"].replace("T", " ")
                 filter_conditions.append("o.creation <= %(to_date)s")
                 filter_values["to_date"] = clean_to
+                
+            if filters.get("order_type"):
+                filter_conditions.append("o.order_type = %(order_type)s")
+                filter_values["order_type"] = filters["order_type"]
         
         where_clause = " AND ".join(filter_conditions)
         
@@ -248,6 +252,7 @@ def get_orders(filter_data=None, page=1, page_size=20, sort_by="creation", sort_
                 o.name as id,
                 o.customer_name as customer,
                 o.order_amount as amount,
+                o.order_type,
                 o.transaction_amount,
                 o.tax,
                 o.fee,

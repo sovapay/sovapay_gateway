@@ -27,7 +27,7 @@ function getStatusBadge(status: string) {
     );
 }
 
-export function AdminOrders() {
+export function AdminPayoutOrders() {
     const [searchParams] = useSearchParams();
     const [searchQuery, setSearchQuery] = useState('');
     // Initialize status filter from URL params or localStorage
@@ -48,7 +48,7 @@ export function AdminOrders() {
     const pageSize = 10;
 
     // Build filter object
-    const filters: any = {};
+    const filters: any = { order_type: 'Pay' };
     if (statusFilter !== 'all') filters.status = statusFilter;
     if (merchantFilter !== 'all') filters.merchant_id = merchantFilter;
     if (dateRange.start) filters.from_date = dateRange.start;
@@ -125,7 +125,7 @@ export function AdminOrders() {
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-semibold text-slate-900">Orders</h1>
+                        <h1 className="text-2xl font-semibold text-slate-900">Payout Orders</h1>
                         <p className="text-sm text-slate-500 mt-1">
                             View and manage all payment orders
                         </p>
@@ -270,7 +270,7 @@ export function AdminOrders() {
                                         {filteredOrders.map((order: any) => (
                                             <tr key={order.id} className="hover:bg-slate-50 transition-colors group">
                                                 <td className="px-6 py-4">
-                                                    <Link to={`/admin/orders/${order.id}`}>
+                                                    <Link to={`/admin/orders/payout/${order.id}`}>
                                                         <p className="text-sm font-mono text-slate-900 hover:text-primary-600 transition-colors">{truncateId(order.id, 16)}</p>
                                                     </Link>
                                                     {order.utr && (

@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import {
     ArrowLeft, Copy, CheckCircle, User,
@@ -28,6 +28,7 @@ function getStatusBadge(status: string) {
 
 export function AdminOrderDetail() {
     const { id } = useParams();
+    const navigate = useNavigate();
     const [copied, setCopied] = useState(false);
 
     const { data: { message: response } = {}, isLoading: loading, error: apiError } = useFrappeGetCall(
@@ -62,9 +63,9 @@ export function AdminOrderDetail() {
                 <div className="text-center py-12">
                     <h2 className="text-lg font-medium text-slate-900">Order not found</h2>
                     <p className="text-slate-500 mt-2">{error || 'Unknown error'}</p>
-                    <Link to="/admin/transactions" className="text-primary-600 hover:text-primary-700 mt-2 inline-block">
-                        Back to transactions
-                    </Link>
+                    <button onClick={() => navigate(-1)} className="text-primary-600 hover:text-primary-700 mt-2 inline-block">
+                        Back
+                    </button>
                 </div>
             </DashboardLayout>
         );
@@ -74,12 +75,12 @@ export function AdminOrderDetail() {
         <DashboardLayout isAdmin>
             <div className="space-y-6">
                 <div className="flex items-center gap-4">
-                    <Link
-                        to="/admin/transactions"
+                    <button
+                        onClick={() => navigate(-1)}
                         className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
                     >
                         <ArrowLeft className="w-5 h-5 text-slate-600" />
-                    </Link>
+                    </button>
                     <div className="flex-1">
                         <div className="flex items-center gap-3">
                             <h1 className="text-2xl font-semibold text-slate-900">

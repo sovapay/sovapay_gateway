@@ -6,8 +6,7 @@ import { Login, Signup, ForgotPassword, TwoFactorVerify } from './pages/auth';
 import { Onboarding, OnboardingComplete } from './pages/onboarding';
 import { Dashboard } from './pages/dashboard';
 import { DepositFunds } from './pages/wallet';
-import { Transactions, TransactionDetail } from './pages/transactions';
-import { Orders, OrderDetail } from './pages/orders';
+import { PayinOrders, PayoutOrders, OrderDetail } from './pages/orders';
 import { Ledger } from './pages/ledger';
 import { Settlements, SettlementDetail } from './pages/settlements';
 import { DevelopersLayout } from './pages/developers/DevelopersLayout';
@@ -16,7 +15,7 @@ import { APIKeys } from './pages/developers/APIKeys';
 import { Webhooks, APILogs, IPWhitelist, WebhookLogs } from './pages/developers';
 import { Profile, Security, KYC, Team } from './pages/settings';
 import { Notifications } from './pages/Notifications';
-import { AdminDashboard, Merchants, MerchantDetail, KYCReviews, AdminTransactions, AdminSettings, AdminReports, TransactionDetail as AdminTransactionDetail, AdminOrderDetail, AdminOrders, AdminVANLogs, AdminVirtualAccounts, SettlementDetail as AdminSettlementDetail } from './pages/admin';
+import { AdminDashboard, Merchants, MerchantDetail, KYCReviews, AdminSettings, AdminReports, AdminOrderDetail, AdminPayinOrders, AdminPayoutOrders, AdminVANLogs, AdminVirtualAccounts, SettlementDetail as AdminSettlementDetail } from './pages/admin';
 // Temporarily disabled - not implemented with real APIs:
 // import { WebhookDetail } from './pages/developers';
 // import { RiskAlerts, AdminUsers } from './pages/admin';
@@ -146,11 +145,14 @@ function App() {
             <Route path="/wallet" element={<Navigate to="/wallet/deposit" replace />} />
             <Route path="/wallet/deposit" element={<ProtectedRoute requireMerchant><DepositFunds /></ProtectedRoute>} />
 
-            <Route path="/transactions" element={<ProtectedRoute requireMerchant><Transactions /></ProtectedRoute>} />
-            <Route path="/transactions/:id" element={<ProtectedRoute requireMerchant><TransactionDetail /></ProtectedRoute>} />
+            <Route path="/transactions" element={<Navigate to="/orders/payin" replace />} />
+            <Route path="/orders" element={<Navigate to="/orders/payin" replace />} />
 
-            <Route path="/orders" element={<ProtectedRoute requireMerchant><Orders /></ProtectedRoute>} />
-            <Route path="/orders/:id" element={<ProtectedRoute requireMerchant><OrderDetail /></ProtectedRoute>} />
+            <Route path="/orders/payin" element={<ProtectedRoute requireMerchant><PayinOrders /></ProtectedRoute>} />
+            <Route path="/orders/payin/:id" element={<ProtectedRoute requireMerchant><OrderDetail /></ProtectedRoute>} />
+
+            <Route path="/orders/payout" element={<ProtectedRoute requireMerchant><PayoutOrders /></ProtectedRoute>} />
+            <Route path="/orders/payout/:id" element={<ProtectedRoute requireMerchant><OrderDetail /></ProtectedRoute>} />
 
             <Route path="/ledger" element={<ProtectedRoute requireMerchant><Ledger /></ProtectedRoute>} />
 
@@ -182,11 +184,14 @@ function App() {
             <Route path="/admin/dashboard" element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/merchants" element={<ProtectedRoute requireAdmin><Merchants /></ProtectedRoute>} />
             <Route path="/admin/merchants/:id" element={<ProtectedRoute requireAdmin><MerchantDetail /></ProtectedRoute>} />
-            <Route path="/admin/orders" element={<ProtectedRoute requireAdmin><AdminOrders /></ProtectedRoute>} />
-            <Route path="/admin/kyc-reviews" element={<ProtectedRoute requireAdmin><KYCReviews /></ProtectedRoute>} />
-            <Route path="/admin/transactions" element={<ProtectedRoute requireAdmin><AdminTransactions /></ProtectedRoute>} />
-            <Route path="/admin/transactions/:id" element={<ProtectedRoute requireAdmin><AdminTransactionDetail /></ProtectedRoute>} />
-            <Route path="/admin/orders/:id" element={<ProtectedRoute requireAdmin><AdminOrderDetail /></ProtectedRoute>} />
+            <Route path="/admin/transactions" element={<Navigate to="/admin/orders/payin" replace />} />
+            <Route path="/admin/orders" element={<Navigate to="/admin/orders/payin" replace />} />
+
+            <Route path="/admin/orders/payin" element={<ProtectedRoute requireAdmin><AdminPayinOrders /></ProtectedRoute>} />
+            <Route path="/admin/orders/payin/:id" element={<ProtectedRoute requireAdmin><AdminOrderDetail /></ProtectedRoute>} />
+
+            <Route path="/admin/orders/payout" element={<ProtectedRoute requireAdmin><AdminPayoutOrders /></ProtectedRoute>} />
+            <Route path="/admin/orders/payout/:id" element={<ProtectedRoute requireAdmin><AdminOrderDetail /></ProtectedRoute>} />
             {/* Risk Alerts and Admin Users temporarily disabled - not implemented with real APIs */}
             {/* <Route path="/admin/risk-alerts" element={<ProtectedRoute requireAdmin><RiskAlerts /></ProtectedRoute>} /> */}
             {/* <Route path="/admin/users" element={<ProtectedRoute requireAdmin><AdminUsers /></ProtectedRoute>} /> */}

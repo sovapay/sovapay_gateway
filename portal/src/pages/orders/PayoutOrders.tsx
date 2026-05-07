@@ -24,7 +24,7 @@ function getStatusBadge(status: string) {
   return <Badge variant="slate">{status}</Badge>;
 }
 
-export function Orders() {
+export function PayoutOrders() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -48,6 +48,7 @@ export function Orders() {
 
   // Build filter data
   const filterData = {
+    order_type: 'Pay',
     ...(statusFilter !== 'all' && { status: statusFilter }),
     ...(debouncedSearch && { search: debouncedSearch })
   };
@@ -78,7 +79,7 @@ export function Orders() {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Orders</h1>
+            <h1 className="text-2xl font-semibold text-slate-900">Payout Orders</h1>
             <p className="text-sm text-slate-500 mt-1">
               View and manage customer orders
             </p>
@@ -166,7 +167,7 @@ export function Orders() {
                     {orders.map((order: any) => (
                       <tr
                         key={order.id}
-                        onClick={() => navigate(`/orders/${order.id}`)}
+                        onClick={() => navigate(`/orders/payout/${order.id}`)}
                         className="hover:bg-slate-50 cursor-pointer transition-colors"
                       >
                         <td className="px-6 py-4">
