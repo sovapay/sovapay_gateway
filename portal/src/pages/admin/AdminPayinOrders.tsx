@@ -32,7 +32,7 @@ export function AdminPayinOrders() {
     const [searchQuery, setSearchQuery] = useState('');
     // Initialize status filter from URL params or localStorage
     const [statusFilter, setStatusFilter] = useState(
-        searchParams.get('status') || localStorage.getItem('admin-orders-status') || 'all'
+        searchParams.get('status') || localStorage.getItem('admin-payin-orders-status') || 'all'
     );
     const [merchantFilter, setMerchantFilter] = useState('all');
     const [dateRange, setDateRange] = useState<{ start?: string; end?: string }>({
@@ -64,7 +64,7 @@ export function AdminPayinOrders() {
             sort_by: 'creation',
             sort_order: 'desc'
         },
-        `admin-orders-${page}-${JSON.stringify(filters)}`
+        `admin-payin-orders-${page}-${JSON.stringify(filters)}`
     );
 
     // Fetch merchants for filter dropdown
@@ -141,7 +141,7 @@ export function AdminPayinOrders() {
                     tabs={statusTabs}
                     activeTab={statusFilter}
                     onChange={(value) => {
-                        localStorage.setItem('admin-orders-status', value);
+                        localStorage.setItem('admin-payin-orders-status', value);
                         setStatusFilter(value);
                         setPage(1);
                     }}

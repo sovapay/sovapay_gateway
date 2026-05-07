@@ -184,6 +184,7 @@ function App() {
             <Route path="/admin/dashboard" element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/merchants" element={<ProtectedRoute requireAdmin><Merchants /></ProtectedRoute>} />
             <Route path="/admin/merchants/:id" element={<ProtectedRoute requireAdmin><MerchantDetail /></ProtectedRoute>} />
+            <Route path="/admin/kyc-reviews" element={<ProtectedRoute requireAdmin><KYCReviews /></ProtectedRoute>} />
             <Route path="/admin/transactions" element={<Navigate to="/admin/orders/payin" replace />} />
             <Route path="/admin/orders" element={<Navigate to="/admin/orders/payin" replace />} />
 
