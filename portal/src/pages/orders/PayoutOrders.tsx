@@ -29,7 +29,7 @@ export function PayoutOrders() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   // Initialize status filter from localStorage
-  const [statusFilter, setStatusFilter] = useState(localStorage.getItem('merchant-orders-status') || 'all');
+  const [statusFilter, setStatusFilter] = useState(localStorage.getItem('merchant-payout-orders-status') || 'all');
   const [currentPage, setCurrentPage] = useState(1);
   // const [exporting, setExporting] = useState(false); // Replaced by hook
   const { exportData, loading: exporting } = useExportData(merchantMethods.exportOrders);
@@ -63,7 +63,7 @@ export function PayoutOrders() {
       sort_order: 'desc',
       filter_data: Object.keys(filterData).length > 0 ? filterData : undefined
     },
-    ['orders', currentPage, pageSize, statusFilter, debouncedSearch]
+    ['payout-orders', currentPage, pageSize, statusFilter, debouncedSearch]
   );
 
   const orders = ordersData?.orders || [];
@@ -105,7 +105,7 @@ export function PayoutOrders() {
             <button
               key={status}
               onClick={() => {
-                localStorage.setItem('merchant-orders-status', status);
+                localStorage.setItem('merchant-payout-orders-status', status);
                 setStatusFilter(status);
               }}
               className={`
