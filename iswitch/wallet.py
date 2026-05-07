@@ -8,12 +8,36 @@ import hmac as hmac_lib
 import json
 import time
 from frappe.auth import validate_auth
+from decimal import Decimal
 
 from iswitch.payload_utils import encrypt_payload, decrypt_payload
 from iswitch.jwt_utils import generate_jwt
 
 def stable_numeric_id(value: str, digits: int = 18) -> str:
     return str(int(hashlib.sha256(value.encode()).hexdigest()[:16], 16))[:digits]
+
+def generate_hash(merchant_id, parameters, hashing_method, secret_key, key_order):
+    hash_data = str(merchant_id)
+    
+    for key in key_order:
+        value = parameters[key]
+        # Convert to string in JavaScript-like manner
+        if isinstance(value, float) and value.is_integer():
+            # Convert float like 10.0 to "10" (like JavaScript)
+            value_str = str(int(value))
+        else:
+            value_str = str(value)
+        hash_data += '|' + value_str
+    
+    hash_data += '|' + str(secret_key)
+    
+    if len(hash_data) > 0:
+        # Create hash using the specified method
+        hash_obj = hashlib.new(hashing_method)
+        hash_obj.update(hash_data.encode('utf-8'))
+        return hash_obj.hexdigest().lower()
+    
+    return None
 
 @frappe.whitelist()
 def topup_order():
@@ -112,11 +136,11 @@ def topup_order():
         }
         return finalize_request_response(request_response, response, 203)
     
-    if data["mode"].upper() != "TOPUP":
-        reponse = {
+    if data["mode"].upper() != "PAYIN":
+        response = {
             "code": "0x0203",
             "status": "MISSING_PARAMETER",
-            "message": "mode must be topup."
+            "message": "mode must be payin."
         }
         return finalize_request_response(request_response, response, 203)
     
@@ -139,7 +163,7 @@ def topup_order():
     #     request_response = frappe.get_doc("Request Response", request_response.name)
     #     return finalize_request_response(request_response, response, 404)
 
-    fields = ["amount", "clientRefId"]
+    fields = ["amount", "mode", "clientRefId"]
 
     try:
         # Field validation
@@ -165,9 +189,27 @@ def topup_order():
             }
             # request_response = frappe.get_doc("Request Response", request_response.name)
             return finalize_request_response(request_response, response, 409)
+
+        order_amount = Decimal(data["amount"])
+
+        product_pricing = frappe.db.sql("""
+            SELECT tax_fee_type, tax_fee, fee_type, fee
+            FROM `tabProduct Pricing`
+            WHERE parent = %s AND product = %s
+            AND %s >= start_value AND %s <= end_value
+        """, (merchant.name, "PAYIN", order_amount, order_amount), as_dict=True)
+        
+        if not product_pricing:
+            response = {
+                "code": "0x0403",
+                "status": "FORBIDDEN",
+                "message": "Payment mode or transaction limit is not active for you. Please contact Admin"
+            }
+            return finalize_request_response(request_response, response, 403)
+
         integration_list = frappe.db.get_list("Integration",filters={"payin": 1}, pluck="name")
         
-        if not integration_list:
+        if not merchant.payin_processor:
             response = {
                 "code": "0x0403",
                 "status": "FORBIDDEN",
@@ -175,19 +217,34 @@ def topup_order():
             }
             return finalize_request_response(request_response, response, 403)
         
-        processor = frappe.get_doc("Integration", integration_list[0])
+        processor = frappe.get_doc("Integration", merchant.payin_processor)
+
+        pricing = product_pricing[0]
+        fee = Decimal(pricing.get("fee", 0))
+        tax = Decimal(pricing.get("tax_fee", 0))
+
+        if pricing["fee_type"] == "Percentage":
+            fee = (order_amount * Decimal(pricing.get("fee", 0))) / 100
+
+        if pricing["tax_fee_type"] == "Percentage":
+            tax = (fee * Decimal(pricing.get("tax_fee", 0))) / 100
+
+        total_amount = order_amount - fee - tax
+
         order = frappe.get_doc({
             "doctype": "Order",
             "order_amount": data["amount"],
             "merchant_ref_id": merchant.name,
             "remark": data.get("remark", ""),
-            "product": "TOPUP",
+            "product": "PAYIN",
             "customer_name": merchant.company_name,
             "channel": "API",
             "integration_id": processor.name,
             "order_type": "Topup",
             "client_ref_id": data["clientRefId"],
-            "transaction_amount": data["amount"]
+            "tax": tax,
+            "fee": fee,
+            "transaction_amount": total_amount
         }).insert(ignore_permissions=True)
 
 
@@ -196,7 +253,7 @@ def topup_order():
             "doctype": 'Transaction',
             "order": order.name,
             "merchant": order.merchant_ref_id,
-            "amount": order.order_amount,
+            "amount": order.transaction_amount,
             "integration": processor.name,
             "status": "Processing",
             "product": order.product,
@@ -209,8 +266,6 @@ def topup_order():
         try:
             from iswitch.tigerbeetle_client import get_client
             import tigerbeetle as tb
-            from decimal import Decimal
-            import hashlib
             
             def stable_id(value: str) -> int:
                 return int(hashlib.sha256(value.encode()).hexdigest()[:32], 16)
@@ -259,18 +314,45 @@ def topup_order():
                     if existing_transfers:
                         existing = existing_transfers[0]
                         if existing.amount != amount:
-                            frappe.throw(f"Duplicate topup with different amount: expected {amount}, got {existing.amount}")
+                            cancel_order(order.name, "Duplicate topup with different amount")
+                            return finalize_request_response(
+                                request_response,
+                                {
+                                    "code": "0x0500",
+                                    "status": "PROCESSING_ERROR",
+                                    "message": "Something went wrong. Please try again later."
+                                },
+                                500
+                            )
                 else:
                     # Other errors are critical
+                    cancel_order(order.name, "Topup initialization failed")
                     frappe.log_error(
                         f"TigerBeetle transfer failed: {error.result}",
                         "TigerBeetle Error"
                     )
-                    frappe.throw(f"Failed to create topup authorization: {error.result}")
+                    return finalize_request_response(
+                        request_response,
+                        {
+                            "code": "0x0500",
+                            "status": "PROCESSING_ERROR",
+                            "message": "Something went wrong. Please try again later."
+                        },
+                        500
+                    )
         
         except Exception as e:
             frappe.log_error("Error creating topup PENDING transfer", frappe.get_traceback())
-            frappe.throw(f"Failed to create topup authorization: {str(e)}")
+            cancel_order(order.name, "Error creating topup PENDING transfer")
+            return finalize_request_response(
+                request_response,
+                {
+                    "code": "0x0500",
+                    "status": "PROCESSING_ERROR",
+                    "message": "Something went wrong. Please try again later."
+                },
+                500
+            )
         
         # 🔹 CREATE PENDING VIRTUAL ACCOUNT LOG
         # This will be marked as Success when webhook arrives
@@ -299,230 +381,92 @@ def topup_order():
             # Don't throw - this is not critical for order processing
         
         # frappe.db.commit()
-        crn = None
-        qr = None
-        status = None
-        remark = None
-        if processor.name == "PAYPROCESS2602280371":
-            order.processor_order_id = stable_numeric_id(order.name)
+        try:
+            crn = None
+            qr = None
+            status = None
+            remark = None
+            if processor.name == "PAYPROCESS2605030048":
+                merchant_id = processor.get_password("client_id")
+                secret_key = processor.get_password("secret_key")
+                headers = {
+                    "merchantID": merchant_id,
+                    "secretKey": secret_key,
+                    "Content-Type": "application/json"
+                }
+                
 
-            payload = {
-                "api_token": processor.get_password("secret_key"),
-                "mobile": "9999999999",
-                "name": order.customer_name,
-                "amount": order.transaction_amount,
-                "email": "user@gmail.com",
-                "order_id": order.processor_order_id
-            }
+                payload = {
+                    "name": "Customer Name",
+                    "mobileNumber": "9999999999",
+                    "email": "user@gmail.com",
+                    "amount": order.order_amount,
+                    "remarks": "Payin"
+                }
 
-            headers = {
-                "Content-Type": "application/json"
-            }
-            url = processor.api_endpoint.rstrip("/") + "/createorder"
+                key_order = [
+                    "name", "mobileNumber", "email", "amount", "remarks"
+                ]
+                generated_hash = generate_hash(merchant_id, payload, 'sha512', secret_key, key_order)
+                payload['hash'] = generated_hash
 
-            response = requests.post(url, json=payload, headers=headers, timeout=10)
-            # if response.status_code == 200:
-            api_response = None
-            try:
-                api_response = response.json()
+                url = processor.api_endpoint.rstrip("/") + "/v1/pg/create-transaction"
 
-            except Exception as e:
-                frappe.log_error("Error in TPI response parsing",response.text)
-                frappe.throw("Error in topup processing")
+                response = requests.post(url, json=payload, headers=headers, timeout=10)
+                # if response.status_code == 200:
+                api_response = None
+                try:
+                    api_response = response.json()
 
-            frappe.log_error("TPI Pay Response",api_response)
+                except Exception as e:
+                    frappe.log_error("Invalid AlbePay Payin Response",response.text)
+                    frappe.throw("Invalid AlbePay Payin Response")
+
+                frappe.log_error("AlbePay Payin Response",api_response)
+                status_flag = api_response.get("success")
+                if status_flag:
+                    api_data = api_response.get("data",{})
+                    crn = api_data.get("clientRefNo","")
+                    qr = api_data.get("paymentLink","")
+                    remark = api_response.get("message","Payment initiated successfully.")
+                    status = "Success"
+                else:
+                    status = "Failed"
+                    remark = api_response.get("message","Payment initiation failed.")
+
+            if status == "Success":
+                frappe.db.set_value("Order", order.name,{"status":"Processing", "processor_order_id": crn, "reason": remark})
+                frappe.db.set_value("Transaction", transaction.name, {"status": "Pending", "crn": crn, "remark": remark})
+                
+                response = {
+                    "code":"0x0200",
+                    "status": "Success",
+                    "order_id": order.name,
+                    "qr": qr,
+                    "message": "Transaction initiated"
+                }
+                return finalize_request_response(request_response, response, 200)
             
-            if api_response.get("status") == "success":
-
-                api_data = api_response.get("data",{})
-                crn = api_data.get("gateway_order_id","")
-                qr = api_data.get("qr_string","")
-                status = "Success"
-            elif api_response.get("status") == "failure" or api_response.get("status") == "failed":
-                status = "Failed"
-                remark = api_response.get("error")
-
-        elif processor.name == "Airtel Payment Bank":
-            pass
-            # vpa = processor.vpa
-            # mid = processor.get_password("client_id")
-            # access_key = processor.get_password("secret_key")
-
-            # token = generate_jwt(
-            #     mid=mid,
-            #     access_key=access_key,
-            #     expiry_seconds=300,
-            # )
-            # headers = {
-            #     "MID": mid,
-            #     "Authorization": token, 
-            #     "Content-Type": "application/json"
-            # }
-
-            # payload = {
-            #     "data":{
-            #         "payeeVpa": vpa,
-            #         "hdnOrderId": order.name,                 # use the generated order ID
-            #         "remarks": data.get("remark") or None,
-            #         "txnAmount": str(order.transaction_amount),
-            #         "minTxnAmount": str(order.transaction_amount),
-            #         "flowType": "PAY",
-            #         "qr": {
-            #             "type": "STRING",
-            #             "width": 240,
-            #             "height": 240,
-            #         },
-            #         "expireIn": {
-            #             "value": 5,
-            #             "format": "MINUTE",
-            #         },
-            #         "customer":  None,
-            #         "posDetail": None
-            #     }
-            # }
-            # encrypted_body = encrypt_payload(plain_dict=payload, access_key=access_key)
-
-            # url = processor.api_endpoint.rstrip("/") + "/merchant-onb-service/qr/code/generate"
-
-            # frappe.log_error("Payout Payload", {"url": url, "headers": headers, "payload": payload, "encrypted_payload": encrypted_body})
-            
-            # response = None
-            # try:
-            #     response = requests.post(url, json=encrypted_body, headers=headers, timeout=10)
-            #     api_response = response.json()
-
-            #     if response.status_code == 200:
-            #         decrypted_data = decrypt_payload(api_response.get("data"), access_key)
-                    
-            #         data = decrypted_data.get("meta")
-            #         if data.get("status","") == "0":
-            #             order.db_set("status", "Processing")
-            #             transaction.db_set("status", "Pending")
-            #             response = {
-            #                 "code": "0x0200",
-            #                 "status": "SUCCESS",
-            #                 "message": "Order processed successfully.",
-            #                 "qr": decrypted_data["data"]["data"]["qr"]["generatedQr"]
-            #             }
-            #             return finalize_request_response(request_response, response, 200)
-
-            #         elif data.get("status","") == "1":
-            #             # VOID the PENDING transfer before cancelling
-            #             try:
-            #                 void_transfer_id = stable_id(f"topup-void-{order.name}")
-            #                 topup_transfer_id = stable_id(f"topup-{order.name}")
-                            
-            #                 void_transfer = tb.Transfer(
-            #                     id=void_transfer_id,
-            #                     debit_account_id=system_account_id,  # Match PENDING direction
-            #                     credit_account_id=merchant_account_id,
-            #                     amount=amount,
-            #                     pending_id=topup_transfer_id,
-            #                     user_data_128=0,
-            #                     user_data_64=0,
-            #                     user_data_32=0,
-            #                     timeout=0,
-            #                     ledger=1,
-            #                     code=500,
-            #                     flags=tb.TransferFlags.VOID_PENDING_TRANSFER,
-            #                     timestamp=0,
-            #                 )
-                            
-            #                 errors = client.create_transfers([void_transfer])
-            #                 if errors:
-            #                     error = errors[0]
-            #                     if error.result != tb.CreateTransferResult.EXISTS:
-            #                         frappe.log_error(f"Failed to VOID topup transfer: {error.result}", "Topup VOID Error")
-            #             except Exception as e:
-            #                 frappe.log_error(f"Error voiding topup transfer: {str(e)}", "Topup VOID Error")
-                        
-            #             order.db_set("status", "Cancelled")
-            #             transaction.status = "Failed"
-            #             transaction.save(ignore_permissions=True)
-            #             transaction.submit()
-            #             response = {
-            #                 "code": "0x0500",
-            #                 "status": "PROCESSING_ERROR",
-            #                 "message": "Error processing the order. Please try again later."
-            #             }
-            #             return finalize_request_response(request_response, response, 500)
-            #     else:
-            #         # VOID the PENDING transfer before cancelling
-            #         try:
-            #             void_transfer_id = stable_id(f"topup-void-{order.name}")
-            #             topup_transfer_id = stable_id(f"topup-{order.name}")
-                        
-            #             void_transfer = tb.Transfer(
-            #                 id=void_transfer_id,
-            #                 debit_account_id=system_account_id,  # Match PENDING direction
-            #                 credit_account_id=merchant_account_id,
-            #                 amount=amount,
-            #                 pending_id=topup_transfer_id,
-            #                 user_data_128=0,
-            #                 user_data_64=0,
-            #                 user_data_32=0,
-            #                 timeout=0,
-            #                 ledger=1,
-            #                 code=500,
-            #                 flags=tb.TransferFlags.VOID_PENDING_TRANSFER,
-            #                 timestamp=0,
-            #             )
-                        
-            #             errors = client.create_transfers([void_transfer])
-            #             if errors:
-            #                 error = errors[0]
-            #                 if error.result != tb.CreateTransferResult.EXISTS:
-            #                     frappe.log_error(f"Failed to VOID topup transfer: {error.result}", "Topup VOID Error")
-            #         except Exception as e:
-            #             frappe.log_error(f"Error voiding topup transfer: {str(e)}", "Topup VOID Error")
-                    
-            #         order.db_set("status", "Cancelled")
-            #         transaction.status = "Failed"
-            #         transaction.save(ignore_permissions=True)
-            #         transaction.submit()
-            #         response = {
-            #             "code": "0x0500",
-            #             "status": "PROCESSING_ERROR",
-            #             "message": "Error processing the order. Please try again later."
-            #         }
-            #         return finalize_request_response(request_response, response, 500)
-
-            # except requests.exceptions.Timeout:
-            #     order.db_set("status", "Processing")
-            #     transaction.db_set("status", "Pending")
-
-            #     response = {
-            #         "code": "0x0504",
-            #         "status": "TIMEOUT",
-            #         "message": "Request timed out. Please check order status later."
-            #     }
-            #     frappe.log_error("Airtel API Payin Timeout",response)
-            #     return finalize_request_response(request_response, response, 504)
-
-        if status == "Success":
-            order.status = "Processing"
-            order.save(ignore_permissions=True)
-
-            transaction.status = "Pending"
-            transaction.crn = crn
-            transaction.remark = remark
-            transaction.save(ignore_permissions=True)
-            response = {
-                "code":"0x0200",
-                "status": "Success",
-                "order_id": order.name,
-                "qr": qr,
-                "message": "Transaction initiated"
-            }
-            return finalize_request_response(request_response, response, 200)
-        
-        elif status == "Failed":
-            handle_topup_failure(order.name,"Failed",remark)
+            elif status == "Failed":
+                handle_topup_failure(order.name,"Failed",remark)
+                response = {
+                    "code": "0x0500",
+                    "status": "FAILED",
+                    "order_id": order.name,
+                    "qr": qr,
+                    "message": "Error in topup"
+                }
+                return finalize_request_response(request_response, response, 500)
+                
+        except Exception as e:
+            handle_topup_failure(order.name,"Failed", "Time Out")
+            frappe.log_error("Error in topup order processing", frappe.get_traceback())
             response = {
                 "code": "0x0500",
-                "status": "FAILED",
-                "message": "Error in topup"
+                "status": "PROCESSING_ERROR",
+                "message": "An error occurred while generating qr. Please try again later."
             }
+
             return finalize_request_response(request_response, response, 500)
         
     except Exception as e:
@@ -543,3 +487,32 @@ def finalize_request_response(doc, response, status_code):
     frappe.local.response.http_status_code = int(status_code)
     frappe.db.commit()
     return response
+
+
+def cancel_order(order_name, remark=None):
+    try:
+        frappe.db.set_value(
+            "Order",
+            order_name,
+            {
+                "status": "Cancelled",
+                "remark": remark
+            },
+            update_modified=True
+        )
+        frappe.db.set_value(
+            "Transaction",
+            {"order": order_name},
+            {
+                "status": "Failed",
+                "remark": remark,
+                "docstatus": 2
+            },
+            update_modified=True
+        )
+
+    except Exception:
+        frappe.log_error(
+            frappe.get_traceback(),
+            "Error in cancelling order"
+        )

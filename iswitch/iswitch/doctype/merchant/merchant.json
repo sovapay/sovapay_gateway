@@ -1,315 +1,327 @@
 {
-    "actions": [],
-    "allow_rename": 1,
-    "autoname": "field:personal_email",
-    "creation": "2025-07-09 15:13:43.112788",
-    "doctype": "DocType",
-    "engine": "InnoDB",
-    "field_order": [
-        "profile_section",
-        "personal_name",
-        "company_name",
-        "business_type",
-        "industry",
-        "description",
-        "website",
-        "webhook",
-        "remark",
-        "documents_to_reupload",
-        "column_break_ggub",
-        "personal_email",
-        "company_email",
-        "contact_detail",
-        "status",
-        "integration",
-        "onboarding_completed",
-        "logo",
-        "note",
-        "tigerbeetle_id",
-        "lien_tigerbeetle_id",
-        "address_section",
-        "country",
-        "address_line_1",
-        "address_line_2",
-        "column_break_addr",
-        "city",
-        "state",
-        "postal_code",
-        "phone",
-        "product_pricing_section",
-        "product_pricing",
-        "documents_section",
-        "director_pan",
-        "column_break_docs",
-        "director_adhar",
-        "column_break_yppq",
-        "company_pan",
-        "column_break_uwyr",
-        "company_gst",
-        "bank_account_details_section",
-        "bank_accounts",
-        "team_management_section",
-        "team"
-    ],
-    "fields": [
-        {
-            "fieldname": "profile_section",
-            "fieldtype": "Section Break",
-            "label": "Profile"
-        },
-        {
-            "fieldname": "company_name",
-            "fieldtype": "Data",
-            "label": "Company Name"
-        },
-        {
-            "fieldname": "website",
-            "fieldtype": "Data",
-            "label": "Website"
-        },
-        {
-            "fieldname": "webhook",
-            "fieldtype": "Data",
-            "label": "Webhook"
-        },
-        {
-            "fieldname": "column_break_ggub",
-            "fieldtype": "Column Break"
-        },
-        {
-            "fieldname": "contact_detail",
-            "fieldtype": "Data",
-            "label": "Contact Detail"
-        },
-        {
-            "default": "Draft",
-            "fieldname": "status",
-            "fieldtype": "Select",
-            "in_list_view": 1,
-            "label": "Status",
-            "options": "Draft\nSubmitted\nApproved\nRejected\nSuspended\nTerminated"
-        },
-        {
-            "fieldname": "product_pricing_section",
-            "fieldtype": "Section Break",
-            "label": "Product Pricing"
-        },
-        {
-            "fieldname": "product_pricing",
-            "fieldtype": "Table",
-            "label": "Product Pricing",
-            "options": "Product Pricing"
-        },
-        {
-            "fieldname": "company_email",
-            "fieldtype": "Data",
-            "in_list_view": 1,
-            "label": "Company Email",
-            "options": "Email"
-        },
-        {
-            "depends_on": "eval: doc.status == 'Approved';",
-            "fieldname": "integration",
-            "fieldtype": "Link",
-            "label": "Integration",
-            "options": "Integration"
-        },
-        {
-            "default": "0",
-            "fieldname": "onboarding_completed",
-            "fieldtype": "Check",
-            "label": "Onboarding Completed"
-        },
-        {
-            "fieldname": "business_type",
-            "fieldtype": "Select",
-            "label": "Business Type",
-            "options": "Individual\nCompany"
-        },
-        {
-            "fieldname": "industry",
-            "fieldtype": "Data",
-            "label": "Industry"
-        },
-        {
-            "fieldname": "description",
-            "fieldtype": "Text",
-            "label": "Business Description"
-        },
-        {
-            "fieldname": "address_section",
-            "fieldtype": "Section Break",
-            "label": "Address"
-        },
-        {
-            "fieldname": "country",
-            "fieldtype": "Data",
-            "label": "Country"
-        },
-        {
-            "fieldname": "address_line_1",
-            "fieldtype": "Data",
-            "label": "Address Line 1"
-        },
-        {
-            "fieldname": "address_line_2",
-            "fieldtype": "Data",
-            "label": "Address Line 2"
-        },
-        {
-            "fieldname": "column_break_addr",
-            "fieldtype": "Column Break"
-        },
-        {
-            "fieldname": "city",
-            "fieldtype": "Data",
-            "label": "City"
-        },
-        {
-            "fieldname": "state",
-            "fieldtype": "Data",
-            "label": "State / Province"
-        },
-        {
-            "fieldname": "postal_code",
-            "fieldtype": "Data",
-            "label": "Postal Code"
-        },
-        {
-            "fieldname": "phone",
-            "fieldtype": "Data",
-            "label": "Phone Number"
-        },
-        {
-            "fieldname": "documents_section",
-            "fieldtype": "Section Break",
-            "label": "Documents"
-        },
-        {
-            "fieldname": "column_break_docs",
-            "fieldtype": "Column Break"
-        },
-        {
-            "fieldname": "director_pan",
-            "fieldtype": "Attach",
-            "label": "Director PAN"
-        },
-        {
-            "fieldname": "director_adhar",
-            "fieldtype": "Attach",
-            "label": "Director Adhar"
-        },
-        {
-            "fieldname": "column_break_yppq",
-            "fieldtype": "Column Break"
-        },
-        {
-            "fieldname": "company_pan",
-            "fieldtype": "Attach",
-            "label": "Company PAN"
-        },
-        {
-            "fieldname": "company_gst",
-            "fieldtype": "Attach",
-            "label": "Company GST"
-        },
-        {
-            "fieldname": "personal_email",
-            "fieldtype": "Data",
-            "label": "Personal Email",
-            "reqd": 1,
-            "unique": 1
-        },
-        {
-            "fieldname": "personal_name",
-            "fieldtype": "Data",
-            "label": "Personal Name",
-            "reqd": 1
-        },
-        {
-            "fieldname": "bank_account_details_section",
-            "fieldtype": "Section Break",
-            "label": "Bank Account Details"
-        },
-        {
-            "fieldname": "bank_accounts",
-            "fieldtype": "Table",
-            "label": "Bank Accounts",
-            "options": "Merchant Bank Account"
-        },
-        {
-            "fieldname": "remark",
-            "fieldtype": "Data",
-            "label": "Remark"
-        },
-        {
-            "fieldname": "documents_to_reupload",
-            "fieldtype": "Small Text",
-            "label": "Documents To Reupload"
-        },
-        {
-            "fieldname": "column_break_uwyr",
-            "fieldtype": "Column Break"
-        },
-        {
-            "fieldname": "logo",
-            "fieldtype": "Attach Image",
-            "label": "Logo"
-        },
-        {
-            "fieldname": "note",
-            "fieldtype": "Small Text",
-            "label": "Note"
-        },
-        {
-            "fieldname": "team_management_section",
-            "fieldtype": "Section Break",
-            "label": "Team Management"
-        },
-        {
-            "fieldname": "team",
-            "fieldtype": "Table",
-            "label": "Team",
-            "options": "Merchant Team"
-        },
-        {
-            "fieldname": "tigerbeetle_id",
-            "fieldtype": "Data",
-            "label": "TigerBeetle ID",
-            "search_index": 1
-        },
-        {
-            "fieldname": "lien_tigerbeetle_id",
-            "fieldtype": "Data",
-            "label": "Lien TigerBeetle ID",
-            "search_index": 1
-        }
-    ],
-    "grid_page_length": 50,
-    "index_web_pages_for_search": 1,
-    "links": [],
-    "modified": "2026-02-14 17:23:08.889380",
-    "modified_by": "Administrator",
-    "module": "iSwitch",
-    "name": "Merchant",
-    "naming_rule": "By fieldname",
-    "owner": "Administrator",
-    "permissions": [
-        {
-            "create": 1,
-            "delete": 1,
-            "email": 1,
-            "export": 1,
-            "print": 1,
-            "read": 1,
-            "report": 1,
-            "role": "System Manager",
-            "share": 1,
-            "write": 1
-        }
-    ],
-    "row_format": "Dynamic",
-    "sort_field": "modified",
-    "sort_order": "DESC",
-    "states": []
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:personal_email",
+ "creation": "2025-07-09 15:13:43.112788",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "profile_section",
+  "personal_name",
+  "company_name",
+  "business_type",
+  "industry",
+  "description",
+  "website",
+  "webhook",
+  "remark",
+  "documents_to_reupload",
+  "column_break_ggub",
+  "personal_email",
+  "company_email",
+  "contact_detail",
+  "status",
+  "integration",
+  "payin_processor",
+  "onboarding_completed",
+  "logo",
+  "note",
+  "tigerbeetle_id",
+  "lien_tigerbeetle_id",
+  "payin_tigerbeetle_id",
+  "address_section",
+  "country",
+  "address_line_1",
+  "address_line_2",
+  "column_break_addr",
+  "city",
+  "state",
+  "postal_code",
+  "phone",
+  "product_pricing_section",
+  "product_pricing",
+  "documents_section",
+  "director_pan",
+  "column_break_docs",
+  "director_adhar",
+  "column_break_yppq",
+  "company_pan",
+  "column_break_uwyr",
+  "company_gst",
+  "bank_account_details_section",
+  "bank_accounts",
+  "team_management_section",
+  "team"
+ ],
+ "fields": [
+  {
+   "fieldname": "profile_section",
+   "fieldtype": "Section Break",
+   "label": "Profile"
+  },
+  {
+   "fieldname": "company_name",
+   "fieldtype": "Data",
+   "label": "Company Name"
+  },
+  {
+   "fieldname": "website",
+   "fieldtype": "Data",
+   "label": "Website"
+  },
+  {
+   "fieldname": "webhook",
+   "fieldtype": "Data",
+   "label": "Webhook"
+  },
+  {
+   "fieldname": "column_break_ggub",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "contact_detail",
+   "fieldtype": "Data",
+   "label": "Contact Detail"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Draft\nSubmitted\nApproved\nRejected\nSuspended\nTerminated"
+  },
+  {
+   "fieldname": "product_pricing_section",
+   "fieldtype": "Section Break",
+   "label": "Product Pricing"
+  },
+  {
+   "fieldname": "product_pricing",
+   "fieldtype": "Table",
+   "label": "Product Pricing",
+   "options": "Product Pricing"
+  },
+  {
+   "fieldname": "company_email",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Company Email",
+   "options": "Email"
+  },
+  {
+   "depends_on": "eval: doc.status == 'Approved';",
+   "fieldname": "integration",
+   "fieldtype": "Link",
+   "label": "Integration",
+   "options": "Integration"
+  },
+  {
+   "default": "0",
+   "fieldname": "onboarding_completed",
+   "fieldtype": "Check",
+   "label": "Onboarding Completed"
+  },
+  {
+   "fieldname": "business_type",
+   "fieldtype": "Select",
+   "label": "Business Type",
+   "options": "Individual\nCompany"
+  },
+  {
+   "fieldname": "industry",
+   "fieldtype": "Data",
+   "label": "Industry"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text",
+   "label": "Business Description"
+  },
+  {
+   "fieldname": "address_section",
+   "fieldtype": "Section Break",
+   "label": "Address"
+  },
+  {
+   "fieldname": "country",
+   "fieldtype": "Data",
+   "label": "Country"
+  },
+  {
+   "fieldname": "address_line_1",
+   "fieldtype": "Data",
+   "label": "Address Line 1"
+  },
+  {
+   "fieldname": "address_line_2",
+   "fieldtype": "Data",
+   "label": "Address Line 2"
+  },
+  {
+   "fieldname": "column_break_addr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "label": "City"
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Data",
+   "label": "State / Province"
+  },
+  {
+   "fieldname": "postal_code",
+   "fieldtype": "Data",
+   "label": "Postal Code"
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "label": "Phone Number"
+  },
+  {
+   "fieldname": "documents_section",
+   "fieldtype": "Section Break",
+   "label": "Documents"
+  },
+  {
+   "fieldname": "column_break_docs",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "director_pan",
+   "fieldtype": "Attach",
+   "label": "Director PAN"
+  },
+  {
+   "fieldname": "director_adhar",
+   "fieldtype": "Attach",
+   "label": "Director Adhar"
+  },
+  {
+   "fieldname": "column_break_yppq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company_pan",
+   "fieldtype": "Attach",
+   "label": "Company PAN"
+  },
+  {
+   "fieldname": "company_gst",
+   "fieldtype": "Attach",
+   "label": "Company GST"
+  },
+  {
+   "fieldname": "personal_email",
+   "fieldtype": "Data",
+   "label": "Personal Email",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "personal_name",
+   "fieldtype": "Data",
+   "label": "Personal Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "bank_account_details_section",
+   "fieldtype": "Section Break",
+   "label": "Bank Account Details"
+  },
+  {
+   "fieldname": "bank_accounts",
+   "fieldtype": "Table",
+   "label": "Bank Accounts",
+   "options": "Merchant Bank Account"
+  },
+  {
+   "fieldname": "remark",
+   "fieldtype": "Data",
+   "label": "Remark"
+  },
+  {
+   "fieldname": "documents_to_reupload",
+   "fieldtype": "Small Text",
+   "label": "Documents To Reupload"
+  },
+  {
+   "fieldname": "column_break_uwyr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "logo",
+   "fieldtype": "Attach Image",
+   "label": "Logo"
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Note"
+  },
+  {
+   "fieldname": "team_management_section",
+   "fieldtype": "Section Break",
+   "label": "Team Management"
+  },
+  {
+   "fieldname": "team",
+   "fieldtype": "Table",
+   "label": "Team",
+   "options": "Merchant Team"
+  },
+  {
+   "fieldname": "tigerbeetle_id",
+   "fieldtype": "Data",
+   "label": "TigerBeetle ID",
+   "search_index": 1
+  },
+  {
+   "fieldname": "lien_tigerbeetle_id",
+   "fieldtype": "Data",
+   "label": "Lien TigerBeetle ID",
+   "search_index": 1
+  },
+  {
+   "fieldname": "payin_tigerbeetle_id",
+   "fieldtype": "Data",
+   "label": "Payin TigerBeetle ID"
+  },
+  {
+   "fieldname": "payin_processor",
+   "fieldtype": "Data",
+   "label": "Payin Processor"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-05-04 15:31:34.887419",
+ "modified_by": "Administrator",
+ "module": "iSwitch",
+ "name": "Merchant",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
 }

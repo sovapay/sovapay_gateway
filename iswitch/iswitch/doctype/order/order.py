@@ -9,7 +9,7 @@ from decimal import Decimal
 
 class Order(Document):
     def before_insert(self):
-        if self.product != "TOPUP":
+        if self.product != "PAYIN":
             merchant = frappe.get_doc("Merchant", self.owner)
             if merchant.status != "Approved":
                 frappe.throw(
@@ -81,7 +81,7 @@ class Order(Document):
 
         self.owner = self.merchant_ref_id
     def after_insert(self):
-        if self.channel == "Web":
+        if self.channel == "Web" and self.product != "PAYIN":
             integration_id = frappe.db.get_value("Merchant", self.owner, "integration")
             self.db_set("integration_id", integration_id)
             frappe.db.savepoint("order_insert")
@@ -91,7 +91,7 @@ class Order(Document):
                     "doctype": 'Transaction',
                     "order": self.name,
                     "merchant": self.merchant_ref_id,
-                    "amount": self.order_amount,
+                    "amount": self.transaction_amount,
                     "integration": self.integration_id,
                     "status": "Processing",
                     "product": self.product,

@@ -295,7 +295,7 @@ export function AdminDashboard() {
                           <p className="text-xs text-slate-500">Settlements to be cleared</p>
                         </div>
                       </div>
-                      <Badge variant="warning">{stats.pending_settlements || stats.pending_orders || 0}</Badge>
+                      <Badge variant="warning">{stats.pending_settlements || 0}</Badge>
                     </div>
                   </Link>
 

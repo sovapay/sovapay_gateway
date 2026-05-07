@@ -333,7 +333,10 @@ export function Merchants() {
                         Balance
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                        Integration
+                        Payin Processor
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        Payout Processor
                       </th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                         Created
@@ -388,6 +391,13 @@ export function Merchants() {
                             </p>
                             <p className="text-[10px] text-slate-400">Wallet balance</p>
                           </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-sm text-slate-700">
+                            {merchant.payin_processor
+                              ? (integrationsRes?.processors?.find((p: any) => p.name === merchant.payin_processor)?.integration_name || merchant.payin_processor)
+                              : 'None'}
+                          </span>
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-sm text-slate-700">

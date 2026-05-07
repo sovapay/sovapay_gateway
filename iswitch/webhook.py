@@ -66,6 +66,52 @@ def albepay_webhook():
             "status": "failed"
         }
 
+@frappe.whitelist(allow_guest=True)
+def albepay_payin_webhook():
+    """
+    SovaPay webhook endpoint to handle payment notifications.
+    """
+    try:
+        if frappe.request.method != "POST":
+            return frappe.response.update({
+                "http_status_code": 405,
+                "message": "Only POST method allowed",
+                "status": "failed"
+            })
+
+        # Parse JSON payload
+        try:
+            payload = json.loads(frappe.request.data)
+            webhook = frappe.get_doc({
+                "doctype":"SovaPay Webhook",
+                "webhook_data":payload,
+                "integration": "AlbePay Payin"
+            }).insert(ignore_permissions=True)
+            webhook.submit()
+            frappe.db.commit()
+            frappe.enqueue("iswitch.webhook.process_webhook",
+                doc=webhook,
+                queue="short",
+                timeout=300)
+                
+            return {"status": "success", "message": "Webhook processed"}
+            
+        except json.JSONDecodeError:
+            frappe.log_error("Invalid JSON in webhook request", "Xettle Webhook")
+            return frappe.response.update({
+                "http_status_code": 400,
+                "message": "Invalid JSON payload",
+                "status": "failed"
+            })
+
+    except Exception as e:
+        frappe.log_error("Webhook processing error", str(e))
+        return {
+            "http_status_code": 500,
+            "message": "Internal server error",
+            "status": "failed"
+        }
+
 def process_webhook(doc):
     frappe.db.savepoint("webhook_process")
     try:
@@ -77,11 +123,39 @@ def process_webhook(doc):
 
         if integration == "AlbePay":
             process_albepay_webhook(payload)
+        elif integration == "AlbePay Payin":
+            process_albepay_payin_webhook(payload)
 
     except Exception as e:
         frappe.db.rollback(save_point = "webhook_process")
         frappe.log_error("Error in processing webhook", str(e))
+
+def process_albepay_payin_webhook(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Process Albepay Payment Bank webhook.
+    Routes to appropriate handler based on order type (Pay, Topup, Refund).
+    """
+    try:
+        status = payload.get("updatedStatus","")
+        client_id = payload.get("clientRefNo","")
+        utr = payload.get("utr","")
+        remark = payload.get("reason","")
+        order_id = frappe.db.get_value("Order",{"processor_order_id":client_id}, "name")
         
+        if not order_id:
+            frappe.log_error(f"Order not found processor_id {client_id}","Skip")
+
+        if status == "FAILURE" or status == "FAILED":
+            handle_topup_failure(order_id, "Failed", remark)
+            frappe.db.commit()
+            
+        elif status == "SUCCESS":
+            handle_topup_success(order_id, utr)
+            frappe.db.commit()
+
+    except Exception as e:
+        frappe.log_error(f"Albepay webhook processing error: {str(e)}", frappe.get_traceback())
+        return {"success": False, "error": str(e)}       
 
 def process_albepay_webhook(payload: Dict[str, Any]) -> Dict[str, Any]:
     """

@@ -75,7 +75,8 @@ function getStatusBadge(status: string) {
 export function Dashboard() {
   const { user } = useAuth();
   const [chartPeriod, setChartPeriod] = useState('Last 30 days');
-
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   // Fetch dashboard stats using frappe-react-sdk
   const { data: { message: dashboardStats } = {}, isLoading: statsLoading } = useFrappeGetCall(
     merchantMethods.getDashboardStats,
@@ -112,7 +113,7 @@ export function Dashboard() {
   // Prepare chart data
   const revenueChartData = chartData?.labels?.map((label, index) => ({
     date: label,
-    revenue: chartData.revenue[index] || 0,
+    volume: chartData.revenue[index] || 0,
     orders: chartData.orders[index] || 0,
   })) || [];
 
@@ -211,6 +212,10 @@ export function Dashboard() {
               data={revenueChartData}
               period={chartPeriod}
               onPeriodChange={setChartPeriod}
+              onDateRangeChange={(from, to) => {
+                  setFromDate(from);
+                  setToDate(to);
+              }}
             />
           </div>
 

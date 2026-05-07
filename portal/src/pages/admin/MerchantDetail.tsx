@@ -73,6 +73,7 @@ export function MerchantDetail() {
   // Processor Change States
   const [showProcessorDropdown, setShowProcessorDropdown] = useState(false);
   const [updatingProcessor, setUpdatingProcessor] = useState(false);
+  const [updatingPayinProcessor, setUpdatingPayinProcessor] = useState(false);
 
   const { success, error: showError } = useToast();
 
@@ -133,16 +134,6 @@ export function MerchantDetail() {
     `admin-merchant-details-${id}`
   );
 
-  const { data: { message: transactionsRes } = {}, isLoading: loadingTransactions } = useFrappeGetCall(
-    adminMethods.getTransactions,
-    {
-      filter_data: { merchant_id: id },
-      page: 1,
-      page_size: 100
-    },
-    `admin-merchant-transactions-${id}`
-  );
-
   const { data: { message: logsRes } = {} } = useFrappeGetCall(
     adminMethods.getMerchantActivityLogs,
     { merchant_id: id },
@@ -173,11 +164,10 @@ export function MerchantDetail() {
   };
 
   // Derived state
-  const merchantData = merchantDetailsRes?.merchant; // merchantDetailsRes structure needs check: { success: boolean, merchant: ... }
-  const merchantTransactions = transactionsRes?.transactions || [];
+  const merchantData = merchantDetailsRes?.merchant;
   const activityLogs = logsRes?.logs || [];
 
-  const loading = loadingDetails || loadingTransactions;
+  const loading = loadingDetails;
   const error = detailsError ? (detailsError.message || 'Failed to load merchant details') : (merchantDetailsRes && !merchantDetailsRes.success ? merchantDetailsRes.error : null);
 
   useEffect(() => {
@@ -325,25 +315,46 @@ export function MerchantDetail() {
     }
   };
 
-  // Handle Processor Change
+  // Handle Payout Processor Change
   const handleProcessorChange = async (processorName: string) => {
     setUpdatingProcessor(true);
     try {
       await updateMerchantCall({
         merchant: id || '',
-        status: merchantData.status || 'Active', // Fallback if status missing
+        status: merchantData.status || 'Active',
         integration: processorName
       });
 
-      success('Success', `Processor ${merchantData.integration ? 'changed' : 'set'} to ${processorName}`);
+      success('Success', `Payout processor ${merchantData.integration ? 'changed' : 'set'} to ${processorName || 'default'}`);
       setShowProcessorDropdown(false);
       merchantDetailsRefetch();
     } catch (err: any) {
-      console.error('Error updating processor:', err);
+      console.error('Error updating payout processor:', err);
       const errorMsg = err?.message || 'Failed to update processor';
       showError('Error', errorMsg);
     } finally {
       setUpdatingProcessor(false);
+    }
+  };
+
+  // Handle Payin Processor Change
+  const handlePayinProcessorChange = async (processorName: string) => {
+    setUpdatingPayinProcessor(true);
+    try {
+      await updateMerchantCall({
+        merchant: id || '',
+        status: merchantData.status || 'Active',
+        payin_processor: processorName
+      });
+
+      success('Success', `Payin processor ${merchantData.payin_processor ? 'changed' : 'set'} to ${processorName || 'default'}`);
+      merchantDetailsRefetch();
+    } catch (err: any) {
+      console.error('Error updating payin processor:', err);
+      const errorMsg = err?.message || 'Failed to update payin processor';
+      showError('Error', errorMsg);
+    } finally {
+      setUpdatingPayinProcessor(false);
     }
   };
 
@@ -375,15 +386,6 @@ export function MerchantDetail() {
     );
   }
 
-  // Calculate stats from transactions
-  const successfulTxns = merchantTransactions.filter((t: any) =>
-    t.status?.toLowerCase() === 'success' || t.status?.toLowerCase() === 'paid' || t.status?.toLowerCase() === 'succeeded'
-  );
-
-  const totalVolume = successfulTxns.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
-  const successRate = merchantTransactions.length > 0
-    ? Math.round((successfulTxns.length / merchantTransactions.length) * 100)
-    : 0;
 
   // Use the fetched data
   const merchant = {
@@ -391,8 +393,9 @@ export function MerchantDetail() {
     businessName: merchantData.company_name,
     industry: merchantData.business_type || 'Technology',
     status: merchantData.status ? merchantData.status.toLowerCase() : 'draft',
-    totalVolume: totalVolume,
+    totalVolume: 0,
     balance: merchantData.wallet_balance || 0,
+    // payinBalance: merchantData.payin_balance || 0,
     lienBalance: merchantData.lien_balance || 0,
     website: merchantData.website || '',
     businessType: merchantData.business_type || 'Unspecified',
@@ -439,10 +442,41 @@ export function MerchantDetail() {
               trigger={
                 <Button
                   variant="secondary"
+                  disabled={updatingPayinProcessor}
+                >
+                  <ArrowRightLeft className="w-4 h-4 mr-2" />
+                  {merchantData?.payin_processor ? 'Change Payin Processor' : 'Set Payin Processor'}
+                </Button>
+              }
+            >
+              {integrationsRes?.processors?.map((processor: any) => {
+                const isCurrent = merchantData?.payin_processor === processor.name ||
+                  (!merchantData?.payin_processor && processor.default === 1);
+                return (
+                  <DropdownItem
+                    key={processor.name}
+                    onClick={() => handlePayinProcessorChange(processor.default === 1 ? '' : processor.name)}
+                    disabled={updatingPayinProcessor || isCurrent}
+                  >
+                    {processor.integration_name}
+                    {isCurrent && ' (Current)'}
+                  </DropdownItem>
+                );
+              })}
+              {(!integrationsRes?.processors || integrationsRes.processors.length === 0) && (
+                <DropdownItem disabled>
+                  No processors available
+                </DropdownItem>
+              )}
+            </Dropdown>
+            <Dropdown
+              trigger={
+                <Button
+                  variant="secondary"
                   disabled={updatingProcessor}
                 >
                   <ArrowRightLeft className="w-4 h-4 mr-2" />
-                  {merchantData?.integration ? 'Change Processor' : 'Set Processor'}
+                  {merchantData?.integration ? 'Change Payout Processor' : 'Set Payout Processor'}
                 </Button>
               }
             >
@@ -515,7 +549,7 @@ export function MerchantDetail() {
           <Card>
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm text-slate-500">Available Balance</p>
+                <p className="text-sm text-slate-500">Payout Balance</p>
                 <p className="text-2xl font-semibold text-slate-900 mt-1">
                   {formatCurrency(merchant.balance)}
                 </p>
@@ -537,15 +571,19 @@ export function MerchantDetail() {
             </div>
           </Card>
           <Card>
-            <p className="text-sm text-slate-500">Transactions</p>
-            <p className="text-2xl font-semibold text-slate-900 mt-1">
-              {formatNumber(merchantTransactions.length)}
+            <p className="text-sm text-slate-500">Payin Processor</p>
+            <p className="text-sm font-semibold text-slate-900 mt-1 truncate">
+              {merchantData?.payin_processor
+                ? (integrationsRes?.processors?.find((p: any) => p.name === merchantData.payin_processor)?.integration_name || merchantData.payin_processor)
+                : 'Default'}
             </p>
           </Card>
           <Card>
-            <p className="text-sm text-slate-500">Success Rate</p>
-            <p className="text-2xl font-semibold text-success-600 mt-1">
-              {successRate}%
+            <p className="text-sm text-slate-500">Payout Processor</p>
+            <p className="text-sm font-semibold text-slate-900 mt-1 truncate">
+              {merchantData?.integration
+                ? (integrationsRes?.processors?.find((p: any) => p.name === merchantData.integration)?.integration_name || merchantData.integration)
+                : 'Default'}
             </p>
           </Card>
         </div>
@@ -553,7 +591,6 @@ export function MerchantDetail() {
         <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="transactions">Transactions</TabsTrigger>
             <TabsTrigger value="documents">Documents</TabsTrigger>
             <TabsTrigger value="activity">Activity Log</TabsTrigger>
             <TabsTrigger value="configuration">Configuration</TabsTrigger>
@@ -660,55 +697,6 @@ export function MerchantDetail() {
             </div>
           </TabsContent>
 
-          <TabsContent value="transactions">
-            <Card padding="none">
-              {merchantTransactions && merchantTransactions.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50">
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">ID</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Customer</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Date</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {merchantTransactions.slice(0, 10).map((txn: any) => (
-                        <tr key={txn.id} className="hover:bg-slate-50">
-                          <td className="px-6 py-4 text-sm font-mono text-slate-900">{txn.id.slice(0, 12)}...</td>
-                          <td className="px-6 py-4 text-sm text-slate-900">{txn.customer_name || 'N/A'}</td>
-                          <td className="px-6 py-4">
-                            <Badge
-                              variant={
-                                (txn.status === 'succeeded' || txn.status === 'success' || txn.status === 'paid') ? 'success' :
-                                  (txn.status === 'pending') ? 'warning' :
-                                    (txn.status === 'processing') ? 'info' :
-                                      (txn.status === 'failed' || txn.status === 'cancelled') ? 'error' : 'slate'
-                              }
-                            >
-                              {txn.status}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-500">{formatDateTime(txn.date || txn.creation)}</td>
-                          <td className="px-6 py-4 text-sm font-medium text-slate-900 text-right">
-                            {formatCurrency(txn.amount)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-12 text-slate-500">
-                  <ArrowRightLeft className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                  <p className="font-medium">No Transactions</p>
-                  <p className="text-sm mt-1">No transactions found for this merchant yet</p>
-                </div>
-              )}
-            </Card>
-          </TabsContent>
 
           <TabsContent value="documents">
             <Card>

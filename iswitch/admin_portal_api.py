@@ -808,6 +808,7 @@ def get_merchants(page=1, page_size=20, search_text=None, filter_data=None):
                 m.status,
                 m.webhook,
                 m.integration,
+                m.payin_processor,
                 m.creation,
                 m.tigerbeetle_id,
                 m.lien_tigerbeetle_id
@@ -997,7 +998,7 @@ def adjust_merchant_funds(merchant, type, amount, remark=None):
         return {"success": False, "error": str(e)}
 
 @frappe.whitelist()
-def update_merchant(merchant, status, integration=None, webhook=None, pricing=None, rejection_remark=None, documents_to_reupload=None):
+def update_merchant(merchant, status, integration=None, payin_processor=None, webhook=None, pricing=None, rejection_remark=None, documents_to_reupload=None):
     """Update merchant details, pricing, and register Webhook"""
     try:
         check_admin_permission()
@@ -1007,6 +1008,9 @@ def update_merchant(merchant, status, integration=None, webhook=None, pricing=No
         
         if integration is not None:
             doc.integration = integration
+        
+        if payin_processor is not None:
+            doc.payin_processor = payin_processor
         
         # Handle rejection remark
         if status == "Rejected":
@@ -1973,6 +1977,7 @@ def get_merchant_details(merchant_name):
             "status": merchant_doc.status,
             "webhook": merchant_doc.webhook,
             "integration": merchant_doc.integration,
+            "payin_processor": merchant_doc.payin_processor if hasattr(merchant_doc, 'payin_processor') else None,
             "remark": merchant_doc.remark,
             "documents_to_reupload": merchant_doc.documents_to_reupload,
             "director_pan": merchant_doc.director_pan,
@@ -1980,7 +1985,8 @@ def get_merchant_details(merchant_name):
             "company_pan": merchant_doc.company_pan,
             "company_gst": merchant_doc.company_gst,
             "wallet_balance": main_balance,
-            "lien_balance": lien_balance
+            "lien_balance": lien_balance,
+            "creation": merchant_doc.creation
         }
 
         # Product pricing
