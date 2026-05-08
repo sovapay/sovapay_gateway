@@ -10,8 +10,19 @@ from iswitch.merchant_team_helper import get_logged_in_merchant_id, get_current_
 import tigerbeetle as tb
 from iswitch.tigerbeetle_client import get_client
 
+def normalize_date_filter(date_str, is_end_date=False):
+    if not date_str:
+        return None
+    clean_date = date_str.replace("T", " ").strip()
+    if ':' not in clean_date:
+        if is_end_date:
+            clean_date += " 23:59:59"
+        else:
+            clean_date += " 00:00:00"
+    return clean_date
+
 @frappe.whitelist()
-def get_dashboard_stats():
+def get_dashboard_stats(period='Last 30 days', from_date=None, to_date=None):
     """Get comprehensive dashboard statistics using SQL queries"""
     try:
         merchant_id = get_logged_in_merchant_id()
@@ -47,6 +58,30 @@ def get_dashboard_stats():
                 account = accounts[0]
                 balance = (account.credits_posted - account.debits_posted - account.debits_pending) / 100
         
+        # Handle date range
+        if from_date and to_date:
+            from_date = normalize_date_filter(from_date, is_end_date=False)
+            to_date = normalize_date_filter(to_date, is_end_date=True)
+        else:
+            days = 30
+            if period == 'Last 7 days':
+                days = 7
+            elif period == 'Last 90 days':
+                days = 90
+            
+            if period == 'Today':
+                from_date = normalize_date_filter(str(frappe.utils.nowdate()), is_end_date=False)
+                to_date = normalize_date_filter(str(frappe.utils.nowdate()), is_end_date=True)
+            else:
+                from_date = normalize_date_filter(
+                    str(frappe.utils.add_days(frappe.utils.nowdate(), -days)),
+                    is_end_date=False
+                )
+                to_date = normalize_date_filter(
+                    str(frappe.utils.nowdate()),
+                    is_end_date=True
+                )
+
         # Get order statistics using optimized SQL
         order_stats = frappe.db.sql('''
             SELECT 
@@ -66,8 +101,8 @@ def get_dashboard_stats():
                 SUM(CASE WHEN status IN ('Pending', 'Processing', 'Queued') AND order_type = 'Topup' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payin_pending_amount,
                 SUM(CASE WHEN status IN ('Cancelled', 'Reversed', 'Failed') AND order_type = 'Topup' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payin_failed_amount
             FROM `tabOrder`
-            WHERE merchant_ref_id = %s
-        ''', (merchant_id,), as_dict=True)
+            WHERE merchant_ref_id = %s AND creation >= %s AND creation <= %s
+        ''', (merchant_id, from_date, to_date), as_dict=True)
         
         stats = order_stats[0] if order_stats else {}
         

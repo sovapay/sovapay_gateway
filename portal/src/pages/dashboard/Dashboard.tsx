@@ -80,8 +80,8 @@ export function Dashboard() {
   // Fetch dashboard stats using frappe-react-sdk
   const { data: { message: dashboardStats } = {}, isLoading: statsLoading } = useFrappeGetCall(
     merchantMethods.getDashboardStats,
-    undefined,
-    ['dashboard-stats']
+    { period: chartPeriod, from_date: fromDate || undefined, to_date: toDate || undefined },
+    ['dashboard-stats', chartPeriod, fromDate, toDate]
   );
 
   // Fetch chart data with period parameter
