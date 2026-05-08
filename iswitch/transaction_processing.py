@@ -217,20 +217,8 @@ def other_transaction_processing(doc,transaction):
 
         if status == "Failed":
             handle_transaction_failure(doc.name, status, remark)
-
-        elif status == "Success":
-            handle_transaction_success(doc.name, status, utr)
         
         elif status == "Pending":
-            txn = frappe.db.get_value("Transaction",{"order":doc.name, "merchant":doc.merchant_ref_id}, "name")
-            transaction = frappe.get_doc("Transaction", txn)
-            
-            transaction.status = status
-            transaction.crn = crn
-            transaction.transaction_reference_id = utr
-            transaction.remark = remark
-            transaction.save(ignore_permissions=True)
-
             doc.utr = utr
             doc.processor_order_id = crn
             doc.save(ignore_permissions=True)
@@ -416,19 +404,12 @@ def process_order(order_name):
             - acc_after.debits_pending
         ) / 100
 
-        # 🔹 4️⃣ Create Frappe Ledger Entry (Authorized)
-        transaction_id = frappe.db.get_value(
-            "Transaction",
-            {"order": doc.name, "merchant": doc.merchant_ref_id},
-            ["name"]
-        )
 
         ledger = frappe.get_doc({
             "doctype": "Ledger",
             "order": doc.name,
             "transaction_type": "Debit",
             "status": "Success",
-            "transaction_id": transaction_id,
             "client_ref_id": doc.client_ref_id,
             "opening_balance": opening_balance,
             "closing_balance": closing_balance
@@ -455,14 +436,6 @@ def cancel_order(order_name):
             UPDATE `tabOrder`
             SET status = 'Cancelled', modified = NOW()
             WHERE name = %s
-        """, (order_name,))
-
-        frappe.db.sql("""
-            UPDATE `tabTransaction`
-            SET status = 'Failed',
-                docstatus = 1,
-                modified = NOW()
-            WHERE `order` = %s
         """, (order_name,))
 
     except Exception as e:

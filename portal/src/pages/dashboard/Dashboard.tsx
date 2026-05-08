@@ -173,7 +173,23 @@ export function Dashboard() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
-            title="Total Volume"
+            title="Payout Success"
+            value={formatCurrency(todayRevenue)}
+            icon={DollarSign}
+            change={`${(dashboardStats?.metric_trends?.volume_change_pct || 0) > 0 ? '+' : ''}${dashboardStats?.metric_trends?.volume_change_pct || 0}%`}
+            changeLabel="vs last month"
+            trend={(dashboardStats?.metric_trends?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
+          />
+          <MetricCard
+            title="Payout Pending"
+            value={formatCurrency(todayRevenue)}
+            icon={DollarSign}
+            change={`${(dashboardStats?.metric_trends?.volume_change_pct || 0) > 0 ? '+' : ''}${dashboardStats?.metric_trends?.volume_change_pct || 0}%`}
+            changeLabel="vs last month"
+            trend={(dashboardStats?.metric_trends?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
+          />
+          <MetricCard
+            title="Payout Failed"
             value={formatCurrency(todayRevenue)}
             icon={DollarSign}
             change={`${(dashboardStats?.metric_trends?.volume_change_pct || 0) > 0 ? '+' : ''}${dashboardStats?.metric_trends?.volume_change_pct || 0}%`}
@@ -189,20 +205,36 @@ export function Dashboard() {
             trend={(dashboardStats?.metric_trends?.success_rate_change_pct || 0) >= 0 ? 'up' : 'down'}
           />
           <MetricCard
-            title="Total Orders"
-            value={totalOrders.toString()}
-            change={`+${dashboardStats?.metric_trends?.orders_this_week || 0}`}
-            changeLabel="this week"
-            icon={CreditCard}
-            trend="up"
+            title="Payin Success"
+            value={formatCurrency(todayRevenue)}
+            icon={DollarSign}
+            change={`${(dashboardStats?.metric_trends?.volume_change_pct || 0) > 0 ? '+' : ''}${dashboardStats?.metric_trends?.volume_change_pct || 0}%`}
+            changeLabel="vs last month"
+            trend={(dashboardStats?.metric_trends?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
           />
           <MetricCard
-            title="Avg. Order Value"
-            value={formatCurrency(avgTransactionValue)}
-            icon={TrendingUp}
-            change={`${(dashboardStats?.metric_trends?.aov_change_pct || 0) > 0 ? '+' : ''}${dashboardStats?.metric_trends?.aov_change_pct || 0}%`}
+            title="Payin Pending"
+            value={formatCurrency(todayRevenue)}
+            icon={DollarSign}
+            change={`${(dashboardStats?.metric_trends?.volume_change_pct || 0) > 0 ? '+' : ''}${dashboardStats?.metric_trends?.volume_change_pct || 0}%`}
             changeLabel="vs last month"
-            trend={(dashboardStats?.metric_trends?.aov_change_pct || 0) >= 0 ? 'up' : 'down'}
+            trend={(dashboardStats?.metric_trends?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
+          />
+          <MetricCard
+            title="Payin Failed"
+            value={formatCurrency(todayRevenue)}
+            icon={DollarSign}
+            change={`${(dashboardStats?.metric_trends?.volume_change_pct || 0) > 0 ? '+' : ''}${dashboardStats?.metric_trends?.volume_change_pct || 0}%`}
+            changeLabel="vs last month"
+            trend={(dashboardStats?.metric_trends?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
+          />
+          <MetricCard
+            title="Success Rate"
+            value={`${successRate}%`}
+            icon={Activity}
+            change={`${(dashboardStats?.metric_trends?.success_rate_change_pct || 0) > 0 ? '+' : ''}${dashboardStats?.metric_trends?.success_rate_change_pct || 0}%`}
+            changeLabel="vs last week"
+            trend={(dashboardStats?.metric_trends?.success_rate_change_pct || 0) >= 0 ? 'up' : 'down'}
           />
         </div>
 

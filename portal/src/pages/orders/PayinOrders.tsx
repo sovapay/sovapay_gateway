@@ -93,10 +93,10 @@ export function PayinOrders() {
               <Upload className="w-4 h-4 mr-2" />
               Import
             </Button> */}
-            <Button onClick={() => setShowCreateModal(true)}>
+            {/* <Button onClick={() => setShowCreateModal(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Create Order
-            </Button>
+            </Button> */}
           </div>
         </div>
 
@@ -156,6 +156,9 @@ export function PayinOrders() {
                         Status
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        UTR
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                         Date
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
@@ -180,6 +183,9 @@ export function PayinOrders() {
                         </td>
                         <td className="px-6 py-4">
                           {getStatusBadge(order.status)}
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-sm text-slate-900">{order.utr || 'N/A'}</p>
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-sm text-slate-500">

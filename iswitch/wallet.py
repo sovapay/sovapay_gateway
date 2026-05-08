@@ -246,19 +246,6 @@ def topup_order():
             "fee": fee,
             "transaction_amount": total_amount
         }).insert(ignore_permissions=True)
-
-
-        # CREATE TRANSACTION
-        transaction = frappe.get_doc({
-            "doctype": 'Transaction',
-            "order": order.name,
-            "merchant": order.merchant_ref_id,
-            "amount": order.transaction_amount,
-            "integration": processor.name,
-            "status": "Processing",
-            "product": order.product,
-            "transaction_date": frappe.utils.now()
-        }).insert(ignore_permissions=True)
         
         
         # 🔹 CREATE PENDING TIGERBEETLE TRANSFER (Authorization Hold)
@@ -436,7 +423,6 @@ def topup_order():
 
             if status == "Success":
                 frappe.db.set_value("Order", order.name,{"status":"Processing", "processor_order_id": crn, "reason": remark})
-                frappe.db.set_value("Transaction", transaction.name, {"status": "Pending", "crn": crn, "remark": remark})
                 
                 response = {
                     "code":"0x0200",
@@ -497,16 +483,6 @@ def cancel_order(order_name, remark=None):
             {
                 "status": "Cancelled",
                 "remark": remark
-            },
-            update_modified=True
-        )
-        frappe.db.set_value(
-            "Transaction",
-            {"order": order_name},
-            {
-                "status": "Failed",
-                "remark": remark,
-                "docstatus": 2
             },
             update_modified=True
         )
