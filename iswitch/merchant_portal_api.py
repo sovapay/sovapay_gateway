@@ -435,6 +435,7 @@ def get_order_details(order_id):
                 o.tax,
                 o.fee,
                 o.status,
+                o.order_type,
                 o.utr,
                 o.reason as description,
                 o.creation as date,
@@ -529,8 +530,8 @@ def get_dashboard_chart_data(period='Last 7 days', from_date=None, to_date=None)
         data = frappe.db.sql("""
             SELECT 
                 DATE(creation) as date,
-                SUM(CASE WHEN order_type = 'Pay' AND status = 'Processed' THEN COALESCE(order_amount, 0) ELSE 0 END) as payout,
-                SUM(CASE WHEN order_type = 'Topup' AND status = 'Processed' THEN COALESCE(order_amount, 0) ELSE 0 END) as payin
+                SUM(CASE WHEN order_type = 'Pay' AND status = 'Processed' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payout,
+                SUM(CASE WHEN order_type = 'Topup' AND status = 'Processed' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payin
             FROM `tabOrder`
             WHERE merchant_ref_id = %s 
             AND creation >= %s AND creation <= %s
@@ -570,7 +571,7 @@ def get_dashboard_chart_data(period='Last 7 days', from_date=None, to_date=None)
         frappe.log_error(f"Error in get_dashboard_chart_data: {str(e)}", "Merchant Portal API")
         return {"labels": [], "payout": [], "payin": []}
 
-        
+
 @frappe.whitelist()
 def get_van_logs(filter_data=None, page=1, page_size=20):
     """Get Virtual Account Network logs using SQL"""

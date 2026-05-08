@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react';
 import {
-    Download, TrendingUp, Users, Activity, FileText, CreditCard, Landmark
+    Download, TrendingUp, Users, Activity, FileText, CreditCard, Landmark, Calendar, Clock
 } from 'lucide-react';
 import { DashboardLayout } from '../../components/layout';
-import { Card, Button, Badge, DateTimePicker, Select } from '../../components/ui';
+import { Card, Button, Badge, DateTimePicker, Select, Modal } from '../../components/ui';
 import { RevenueAreaChart } from '../../components/charts/RevenueAreaChart';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { useFrappeGetCall } from 'frappe-react-sdk';
 import { adminMethods } from '../../services/methods';
 import { useExportData } from '../../hooks';
 
-type ReportTab = 'overview' | 'transactions' | 'ledgers' | 'settlements';
+type ReportTab = 'overview' | 'payin_ledgers' | 'payout_ledgers' | 'settlements';
 
 export function AdminReports() {
 
@@ -27,41 +27,34 @@ export function AdminReports() {
     // Use SDK-based export hook
     const { exportData, loading: exporting } = useExportData(adminMethods.exportReport);
 
-    // Set default 7-day datetime range
-    const getDefaultDateRange = () => {
-        const end = new Date();
-        const start = new Date();
-        start.setDate(start.getDate() - 7);
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
 
-        // Format as YYYY-MM-DDTHH:mm:ss for datetime picker
-        const formatDateTime = (date: Date) => {
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            const hours = String(date.getHours()).padStart(2, '0');
-            const minutes = String(date.getMinutes()).padStart(2, '0');
-            const seconds = String(date.getSeconds()).padStart(2, '0');
-            return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
-        };
-
-        return {
-            start: formatDateTime(start),
-            end: formatDateTime(end)
-        };
-    };
-
-    const [dateRange, setDateRange] = useState(getDefaultDateRange());
+    const [dateRange, setDateRange] = useState<{ start?: string; end?: string }>({ 
+        start: undefined, 
+        end: undefined 
+    });
     const [merchantFilter, setMerchantFilter] = useState('all');
-    const [productFilter, setProductFilter] = useState('all');
 
-    // Initialize status filters from localStorage
-    const [statusFilter, setStatusFilter] = useState(localStorage.getItem('admin-reports-transaction-status') || 'all');
     const [searchQuery] = useState('');
     const [ledgerTypeFilter, setLedgerTypeFilter] = useState(localStorage.getItem('admin-reports-ledger-type') || 'all');
     const [settlementStatusFilter, setSettlementStatusFilter] = useState(localStorage.getItem('admin-reports-settlement-status') || 'all');
     const [currentPage, setCurrentPage] = useState(1);
+    const [showFilters, setShowFilters] = useState(false);
+    const [isCustomRangeModalOpen, setIsCustomRangeModalOpen] = useState(false);
+    const [tempDates, setTempDates] = useState<{ start?: string, end?: string }>({ 
+        start: undefined, 
+        end: undefined 
+    });
+
+    const activeFilterCount = (merchantFilter !== 'all' ? 1 : 0) + (dateRange.start || dateRange.end ? 1 : 0);
+
+    const handleApplyRange = () => {
+        if (tempDates.start && tempDates.end && tempDates.start > tempDates.end) {
+            return;
+        }
+        setDateRange({ start: tempDates.start!, end: tempDates.end! });
+        setIsCustomRangeModalOpen(false);
+        setCurrentPage(1);
+    };
 
     // Fetch merchants for filter dropdown
     const { data: { message: merchantsData } = {} } = useFrappeGetCall(
@@ -70,14 +63,6 @@ export function AdminReports() {
         'admin-merchants-filter'
     );
     const allMerchants = merchantsData?.merchants || [];
-
-    // Fetch products for filter dropdown
-    const { data: { message: productsData } = {} } = useFrappeGetCall(
-        adminMethods.getProductsForFilter,
-        {},
-        'admin-products-filter'
-    );
-    const allProducts = productsData?.products || [];
 
     // Fetch metrics
     const { data: { message: metricsData } = {} } = useFrappeGetCall(
@@ -123,40 +108,23 @@ export function AdminReports() {
         `admin-report-insights-${dateRange.start}-${dateRange.end}-${merchantFilter}`
     );
 
-    // Fetch transactions for overview and transactions tab
-    const transactionsFilters = {
+    // Fetch ledgers
+    const ledgerFilters = {
         start_date: dateRange.start,
         end_date: dateRange.end,
         merchant_id: merchantFilter !== 'all' ? merchantFilter : undefined,
-        product: productFilter !== 'all' ? productFilter : undefined,
-        status: statusFilter !== 'all' ? statusFilter : undefined,
-        search: searchQuery,
-        page: activeTab === 'transactions' ? currentPage : 1,
-        page_size: activeTab === 'transactions' ? 20 : 10
-    };
-
-    const { data: { message: transactionsData } = {} } = useFrappeGetCall(
-        adminMethods.getReportTransactions,
-        transactionsFilters,
-        `admin-report-transactions-${JSON.stringify(transactionsFilters)}-${activeTab}`
-    );
-
-    // Fetch ledgers
-    const ledgerFilters = {
-        filter_data: JSON.stringify({
-            from_date: dateRange.start,
-            to_date: dateRange.end,
-            merchant: merchantFilter !== 'all' ? merchantFilter : undefined,
-            type: ledgerTypeFilter !== 'all' ? ledgerTypeFilter : undefined
-        }),
+        entry_type: ledgerTypeFilter !== 'all' ? ledgerTypeFilter : undefined,
+        group: activeTab === 'payin_ledgers' ? 'Payin' : (activeTab === 'payout_ledgers' ? 'Payout' : undefined),
         page: currentPage,
         page_size: 20
     };
 
+    const isLedgersTab = activeTab === 'payin_ledgers' || activeTab === 'payout_ledgers';
+
     const { data: { message: ledgersData } = {} } = useFrappeGetCall(
-        activeTab === 'ledgers' ? adminMethods.getReportLedgers : '',
+        isLedgersTab ? adminMethods.getReportLedgers : '',
         ledgerFilters,
-        activeTab === 'ledgers' ? `admin-report-ledgers-${JSON.stringify(ledgerFilters)}` : null
+        isLedgersTab ? `admin-report-ledgers-${JSON.stringify(ledgerFilters)}` : null
     );
 
     // Fetch settlements
@@ -180,19 +148,20 @@ export function AdminReports() {
     // Reset page when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [dateRange, merchantFilter, productFilter, statusFilter, searchQuery, ledgerTypeFilter, settlementStatusFilter]);
+    }, [dateRange, merchantFilter, searchQuery, ledgerTypeFilter, settlementStatusFilter]);
 
-    // Extract data from API responses
     const metrics = metricsData || {
-        total_volume: 0,
-        avg_transaction: 0,
-        success_rate: 0,
+        payin_revenue: 0,
+        payout_revenue: 0,
+        revenue_percentage: 0,
         new_merchants: 0
     };
 
     const chartData = (trendData?.trend_data || []).map((item: any) => ({
         date: item.date,
-        revenue: item.volume
+        payin_revenue: item.payin_revenue,
+        payout_revenue: item.payout_revenue,
+        revenue: (item.payin_revenue || 0) + (item.payout_revenue || 0)
     }));
 
     const productDistribution = distributionData?.distribution || [];
@@ -210,13 +179,10 @@ export function AdminReports() {
             to_date: dateRange.end
         };
 
-        if (activeTab === 'transactions') {
-            if (merchantFilter !== 'all') filters.merchant_id = merchantFilter;
-            if (statusFilter !== 'all') filters.status = statusFilter;
-            if (productFilter !== 'all') filters.product = productFilter;
-        } else if (activeTab === 'ledgers') {
+        if (isLedgersTab) {
             if (merchantFilter !== 'all') filters.merchant = merchantFilter;
             if (ledgerTypeFilter !== 'all') filters.type = ledgerTypeFilter;
+            filters.group = activeTab === 'payin_ledgers' ? 'Payin' : 'Payout';
         } else if (activeTab === 'settlements') {
             if (merchantFilter !== 'all') filters.merchant_id = merchantFilter;
             if (settlementStatusFilter !== 'all') filters.status = settlementStatusFilter;
@@ -232,20 +198,18 @@ export function AdminReports() {
         }
     };
 
-    const adminTransactions = transactionsData?.transactions || [];
-    const transactionsTotal = transactionsData?.total || 0;
-
     const ledgerEntries = ledgersData?.entries || [];
     const ledgersTotal = ledgersData?.total || 0;
 
-
-    const adminSettlements = settlementsData?.logs || [];
+    const adminSettlements = settlementsData?.logs || settlementsData?.settlements || [];
     const settlementsTotal = settlementsData?.total || 0;
+
+    const pageSize = 20;
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: TrendingUp },
-        { id: 'transactions', label: 'Transactions', icon: CreditCard },
-        { id: 'ledgers', label: 'Ledgers', icon: FileText },
+        { id: 'payin_ledgers', label: 'Payin Ledger', icon: FileText },
+        { id: 'payout_ledgers', label: 'Payout Ledger', icon: FileText },
         { id: 'settlements', label: 'Settlements', icon: Landmark }
     ];
 
@@ -294,55 +258,34 @@ export function AdminReports() {
 
                 {/* Status Tabs and Filters on Same Row */}
                 <div className="flex items-center justify-between gap-4">
-                    {/* Status Tabs for Transactions */}
-                    {activeTab === 'transactions' && (
-                        <div className="flex flex-wrap gap-2">
-                            {(['all', 'success', 'failed', 'pending', 'processing'] as const).map((status) => (
-                                <button
-                                    key={status}
-                                    onClick={() => {
-                                        const newStatus = status === 'all' ? 'all' : status.charAt(0).toUpperCase() + status.slice(1);
-                                        localStorage.setItem('admin-reports-transaction-status', newStatus);
-                                        setStatusFilter(newStatus);
-                                        setCurrentPage(1);
-                                    }}
-                                    className={`
-                                        flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all
-                                        ${(statusFilter.toLowerCase() === status || (statusFilter === 'all' && status === 'all'))
-                                            ? 'bg-slate-900 text-white shadow-sm'
-                                            : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-                                        }
-                                    `}
-                                >
-                                    <span>{status.charAt(0).toUpperCase() + status.slice(1)}</span>
-                                </button>
-                            ))}
-                        </div>
-                    )}
+
 
                     {/* Status Tabs for Ledgers */}
-                    {activeTab === 'ledgers' && (
-                        <div className="flex flex-wrap gap-2">
-                            {(['all', 'credit', 'debit'] as const).map((type) => (
-                                <button
-                                    key={type}
-                                    onClick={() => {
-                                        const newType = type === 'all' ? 'all' : type.charAt(0).toUpperCase() + type.slice(1);
-                                        localStorage.setItem('admin-reports-ledger-type', newType);
-                                        setLedgerTypeFilter(newType);
-                                        setCurrentPage(1);
-                                    }}
-                                    className={`
-                                        flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all
-                                        ${(ledgerTypeFilter.toLowerCase() === type || (ledgerTypeFilter === 'all' && type === 'all'))
-                                            ? 'bg-slate-900 text-white shadow-sm'
-                                            : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-                                        }
-                                    `}
-                                >
-                                    <span>{type.charAt(0).toUpperCase() + type.slice(1)}</span>
-                                </button>
-                            ))}
+                    {isLedgersTab && (
+                        <div className="flex flex-col gap-4">
+                            {/* Type Filter Tabs */}
+                            <div className="flex flex-wrap gap-2">
+                                {(['all', 'credit', 'debit'] as const).map((type) => (
+                                    <button
+                                        key={type}
+                                        onClick={() => {
+                                            const newType = type === 'all' ? 'all' : type.charAt(0).toUpperCase() + type.slice(1);
+                                            localStorage.setItem('admin-reports-ledger-type', newType);
+                                            setLedgerTypeFilter(newType);
+                                            setCurrentPage(1);
+                                        }}
+                                        className={`
+                                            flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all
+                                            ${(ledgerTypeFilter.toLowerCase() === type || (ledgerTypeFilter === 'all' && type === 'all'))
+                                                ? 'bg-slate-900 text-white shadow-sm'
+                                                : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                                            }
+                                        `}
+                                    >
+                                        <span>{type.charAt(0).toUpperCase() + type.slice(1)}</span>
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     )}
 
@@ -374,84 +317,101 @@ export function AdminReports() {
 
                     {/* Filters Button */}
                     <button
-                        onClick={() => {
-                            document.getElementById('reports-filters')?.classList.toggle('max-h-0');
-                            document.getElementById('reports-filters')?.classList.toggle('max-h-96');
-                            document.getElementById('reports-filters')?.classList.toggle('opacity-0');
-                            document.getElementById('reports-filters')?.classList.toggle('opacity-100');
-                        }}
-                        className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap"
+                        onClick={() => setShowFilters(!showFilters)}
+                        className={`
+                            flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all border
+                            ${showFilters 
+                                ? 'bg-slate-900 text-white border-slate-900' 
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}
+                        `}
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                         </svg>
                         <span>Filters</span>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
+                        {activeFilterCount > 0 && (
+                            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${showFilters ? 'bg-primary-500 text-white' : 'bg-primary-600 text-white'}`}>
+                                {activeFilterCount}
+                            </span>
+                        )}
+                        {showFilters ? (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                            </svg>
+                        ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                        )}
                     </button>
                 </div>
 
                 {/* Collapsible Filter Panel */}
                 <div
-                    id="reports-filters"
-                    className="overflow-hidden transition-all duration-300 ease-in-out max-h-0 opacity-0"
+                    className={`
+                        overflow-hidden transition-all duration-300 ease-in-out
+                        ${showFilters ? 'max-h-96 opacity-100 mt-4' : 'max-h-0 opacity-0'}
+                    `}
                 >
-                    <div className="bg-white border border-slate-200 rounded-lg p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            <div className="space-y-1 col-span-2">
-                                <label className="block text-xs font-medium text-slate-700 mb-2">
-                                    Date Range
-                                </label>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <DateTimePicker
-                                        value={dateRange.start}
-                                        onChange={(value) => setDateRange({ ...dateRange, start: value })}
-                                    />
-                                    <DateTimePicker
-                                        value={dateRange.end}
-                                        onChange={(value) => setDateRange({ ...dateRange, end: value })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-1">
-                                <label className="text-xs font-medium text-slate-700 block mb-2">
+                    <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+                        <div className="flex flex-col sm:flex-row gap-6">
+                            {/* Merchant Filter */}
+                            <div className="w-full sm:w-64">
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                                     Merchant
                                 </label>
                                 <Select
                                     value={merchantFilter}
-                                    onChange={(e) => setMerchantFilter(e.target.value)}
+                                    onChange={(e) => {
+                                        setMerchantFilter(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
                                     options={[
                                         { value: 'all', label: 'All Merchants' },
-                                        ...allMerchants.map((merchant: any) => ({
-                                            value: merchant.id,
-                                            label: merchant.name
+                                        ...allMerchants.map((m: any) => ({
+                                            value: m.id,
+                                            label: m.name
                                         }))
                                     ]}
                                 />
                             </div>
 
-                            {activeTab === 'transactions' && (
-                                <div className="space-y-1">
-                                    <label className="text-xs font-medium text-slate-700 block mb-2">
-                                        Product
-                                    </label>
-                                    <Select
-                                        value={productFilter}
-                                        onChange={(e) => setProductFilter(e.target.value)}
-                                        options={[
-                                            { value: 'all', label: 'All Products' },
-                                            ...allProducts.map((product: any) => ({
-                                                value: product.id,
-                                                label: product.name
-                                            }))
-                                        ]}
-                                    />
+                            {/* Date Filter */}
+                            <div className="flex-1">
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                                    Date Range
+                                </label>
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => {
+                                            setTempDates({
+                                                start: dateRange.start || '',
+                                                end: dateRange.end || ''
+                                            });
+                                            setIsCustomRangeModalOpen(true);
+                                        }}
+                                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors w-full sm:w-auto"
+                                    >
+                                        <Calendar className="w-4 h-4 text-slate-400" />
+                                        {dateRange.start && dateRange.end ? (
+                                            <span>{formatDateTime(dateRange.start)} → {formatDateTime(dateRange.end)}</span>
+                                        ) : (
+                                            <span className="text-slate-500">Select Date Range</span>
+                                        )}
+                                    </button>
+                                    {(dateRange.start || dateRange.end) && (
+                                        <button
+                                            onClick={() => {
+                                                setDateRange({ start: undefined, end: undefined });
+                                                setCurrentPage(1);
+                                            }}
+                                            className="text-xs text-primary-600 hover:text-primary-700 font-medium whitespace-nowrap"
+                                        >
+                                            Clear dates
+                                        </button>
+                                    )}
                                 </div>
-                            )}
-
-
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -459,13 +419,13 @@ export function AdminReports() {
                 {/* Tab Content */}
                 {activeTab === 'overview' && (
                     <div className="space-y-6">
-                        {/* Metric Cards — Revenue Overview */}
+                        {/* Metric Cards */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             <Card>
                                 <div className="flex items-start justify-between">
                                     <div>
                                         <p className="text-sm font-medium text-slate-500">Total Payout Revenue</p>
-                                        <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(metrics.payout_revenue || 0)}</p>
+                                        <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(metrics.payout_revenue)}</p>
                                     </div>
                                     <div className="p-2 bg-slate-50 rounded-lg text-slate-400">
                                         <TrendingUp className="w-5 h-5" />
@@ -476,7 +436,7 @@ export function AdminReports() {
                                 <div className="flex items-start justify-between">
                                     <div>
                                         <p className="text-sm font-medium text-slate-500">Total Payin Revenue</p>
-                                        <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(metrics.payin_revenue || 0)}</p>
+                                        <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(metrics.payin_revenue)}</p>
                                     </div>
                                     <div className="p-2 bg-slate-50 rounded-lg text-slate-400">
                                         <TrendingUp className="w-5 h-5" />
@@ -487,7 +447,7 @@ export function AdminReports() {
                                 <div className="flex items-start justify-between">
                                     <div>
                                         <p className="text-sm font-medium text-slate-500">Overall Revenue Margin</p>
-                                        <p className="text-2xl font-bold text-slate-900 mt-1">{metrics.overall_revenue_margin ?? 0}%</p>
+                                        <p className="text-2xl font-bold text-slate-900 mt-1">{metrics.revenue_percentage.toFixed(2)}%</p>
                                     </div>
                                     <div className="p-2 bg-slate-50 rounded-lg text-slate-400">
                                         <Activity className="w-5 h-5" />
@@ -498,7 +458,7 @@ export function AdminReports() {
                                 <div className="flex items-start justify-between">
                                     <div>
                                         <p className="text-sm font-medium text-slate-500">New Merchants</p>
-                                        <p className="text-2xl font-bold text-slate-900 mt-1">{metrics.new_merchants || 0}</p>
+                                        <p className="text-2xl font-bold text-slate-900 mt-1">{metrics.new_merchants}</p>
                                     </div>
                                     <div className="p-2 bg-slate-50 rounded-lg text-slate-400">
                                         <Users className="w-5 h-5" />
@@ -558,132 +518,8 @@ export function AdminReports() {
                                 </Card>
                             </div>
                         </div>
-
-                        {/* Recent Transactions Preview */}
-                        <Card padding="none">
-                            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-                                <h3 className="font-semibold text-slate-900">Recent Transaction Log</h3>
-                                <button onClick={() => setActiveTab('transactions')} className="text-sm text-primary-600 font-medium hover:text-primary-700">
-                                    View All
-                                </button>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full">
-                                    <thead className="bg-slate-50">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">ID</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Merchant</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Product/Method</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Amount</th>
-                                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-200">
-                                        {adminTransactions.slice(0, 10).map((txn: any) => (
-                                            <tr key={txn.id} className="hover:bg-slate-50">
-                                                <td className="px-6 py-4 text-sm font-mono text-slate-900">{txn.id}</td>
-                                                <td className="px-6 py-4 text-sm text-slate-600">
-                                                    {txn.merchant_name}
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-slate-600">{txn.product}</td>
-                                                <td className="px-6 py-4 text-sm font-medium text-slate-900">{formatCurrency(txn.amount)}</td>
-                                                <td className="px-6 py-4">
-                                                    <Badge variant={txn.status === 'Processed' ? 'success' : txn.status === 'Pending' ? 'warning' : 'error'}>
-                                                        {txn.status}
-                                                    </Badge>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                        {adminTransactions.length === 0 && (
-                                            <tr>
-                                                <td colSpan={5} className="px-6 py-8 text-center text-sm text-slate-500">
-                                                    No transactions found
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </Card>
                     </div>
-                )}
-
-                {activeTab === 'transactions' && (
-                    <Card padding="none">
-                        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-                            <h3 className="font-semibold text-slate-900">Transaction Report</h3>
-                            <span className="text-xs text-slate-500">Showing {adminTransactions.length} entries</span>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full">
-                                <thead className="bg-slate-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">ID</th>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Date</th>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Merchant</th>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Customer</th>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Amount</th>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {adminTransactions.map((txn: any) => (
-                                        <tr key={txn.id} className="hover:bg-slate-50 transition-colors">
-                                            <td className="px-6 py-4 text-sm font-mono text-slate-900">{txn.id.slice(0, 12)}...</td>
-                                            <td className="px-6 py-4 text-sm text-slate-500">{formatDateTime(txn.date)}</td>
-                                            <td className="px-6 py-4 text-sm text-slate-900">
-                                                {txn.merchant_name}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-sm text-slate-900 font-medium">{txn.customer_name}</div>
-                                                <div className="text-xs text-slate-500">{txn.customer_email}</div>
-                                            </td>
-                                            <td className="px-6 py-4 text-sm font-semibold text-slate-900">{formatCurrency(txn.amount)}</td>
-                                            <td className="px-6 py-4">
-                                                <Badge variant={txn.status === 'Processed' ? 'success' : txn.status === 'Pending' ? 'warning' : 'error'}>
-                                                    {txn.status}
-                                                </Badge>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {adminTransactions.length === 0 && (
-                                        <tr>
-                                            <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
-                                                No transactions found matching the selected filters.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                        {/* Pagination */}
-                        <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-white text-sm">
-                            <div className="text-slate-500">
-                                Showing {(currentPage - 1) * 20 + 1} to {Math.min(currentPage * 20, transactionsTotal)} of {transactionsTotal}
-                            </div>
-                            <div className="flex gap-2">
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                    disabled={currentPage === 1}
-                                >
-                                    Previous
-                                </Button>
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={() => setCurrentPage(p => p + 1)}
-                                    disabled={currentPage * 20 >= transactionsTotal}
-                                >
-                                    Next
-                                </Button>
-                            </div>
-                        </div>
-                    </Card>
-                )}
-
-                {activeTab === 'ledgers' && (
+                )}                {isLedgersTab && (
                     <Card padding="none">
                         <div className="p-4 border-b border-slate-200 flex items-center justify-between">
                             <h3 className="font-semibold text-slate-900">Merchant Ledger Report</h3>
@@ -709,7 +545,7 @@ export function AdminReports() {
                                             <td className="px-6 py-4 text-sm text-slate-600">
                                                 {entry.merchant_name}
                                             </td>
-                                            <td className="px-6 py-4 text-sm text-slate-600">{entry.order_id}</td>
+                                            <td className="px-6 py-4 text-sm text-slate-600">{entry.description}</td>
                                             <td className="px-6 py-4 text-sm font-medium text-success-600">{entry.credit > 0 ? formatCurrency(entry.credit) : '-'}</td>
                                             <td className="px-6 py-4 text-sm font-medium text-error-600">{entry.debit > 0 ? formatCurrency(entry.debit) : '-'}</td>
                                             <td className="px-6 py-4 text-sm font-medium text-slate-900">{formatCurrency(entry.balance)}</td>
@@ -726,25 +562,24 @@ export function AdminReports() {
                                 </tbody>
                             </table>
                         </div>
-                        {/* Pagination */}
-                        <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-white text-sm">
-                            <div className="text-slate-500">
-                                Showing {(currentPage - 1) * 20 + 1} to {Math.min(currentPage * 20, ledgersTotal)} of {ledgersTotal}
-                            </div>
-                            <div className="flex gap-2">
+                        <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-slate-50/50">
+                            <p className="text-sm text-slate-500 font-medium">
+                                Showing {ledgerEntries.length} of {ledgersTotal} entries
+                            </p>
+                            <div className="flex items-center gap-2">
                                 <Button
                                     variant="secondary"
                                     size="sm"
-                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                     disabled={currentPage === 1}
+                                    onClick={() => setCurrentPage(currentPage - 1)}
                                 >
                                     Previous
                                 </Button>
                                 <Button
                                     variant="secondary"
                                     size="sm"
-                                    onClick={() => setCurrentPage(p => p + 1)}
-                                    disabled={currentPage * 20 >= ledgersTotal}
+                                    disabled={currentPage * pageSize >= ledgersTotal}
+                                    onClick={() => setCurrentPage(currentPage + 1)}
                                 >
                                     Next
                                 </Button>
@@ -809,25 +644,24 @@ export function AdminReports() {
                                 </tbody>
                             </table>
                         </div>
-                        {/* Pagination */}
-                        <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-white text-sm">
-                            <div className="text-slate-500">
-                                Showing {(currentPage - 1) * 20 + 1} to {Math.min(currentPage * 20, settlementsTotal)} of {settlementsTotal}
-                            </div>
-                            <div className="flex gap-2">
+                        <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-slate-50/50">
+                            <p className="text-sm text-slate-500 font-medium">
+                                Showing {adminSettlements.length} of {settlementsTotal} entries
+                            </p>
+                            <div className="flex items-center gap-2">
                                 <Button
                                     variant="secondary"
                                     size="sm"
-                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                     disabled={currentPage === 1}
+                                    onClick={() => setCurrentPage(currentPage - 1)}
                                 >
                                     Previous
                                 </Button>
                                 <Button
                                     variant="secondary"
                                     size="sm"
-                                    onClick={() => setCurrentPage(p => p + 1)}
-                                    disabled={currentPage * 20 >= settlementsTotal}
+                                    disabled={currentPage * pageSize >= settlementsTotal}
+                                    onClick={() => setCurrentPage(currentPage + 1)}
                                 >
                                     Next
                                 </Button>
@@ -836,6 +670,46 @@ export function AdminReports() {
                     </Card>
                 )}
             </div>
+
+            <Modal
+                isOpen={isCustomRangeModalOpen}
+                onClose={() => setIsCustomRangeModalOpen(false)}
+                title="Select Custom Range"
+                size="md"
+            >
+                <div className="space-y-6 py-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-primary-500" />
+                                START DATE & TIME
+                            </label>
+                            <DateTimePicker
+                                value={tempDates.start || ''}
+                                onChange={(val) => setTempDates({ ...tempDates, start: val })}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-primary-500" />
+                                END DATE & TIME
+                            </label>
+                            <DateTimePicker
+                                value={tempDates.end || ''}
+                                onChange={(val) => setTempDates({ ...tempDates, end: val })}
+                            />
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                        <Button variant="secondary" onClick={() => setIsCustomRangeModalOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleApplyRange}>
+                            Apply Range
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
         </DashboardLayout>
     );
 }
