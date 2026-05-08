@@ -117,12 +117,12 @@ export function Dashboard() {
     orders: chartData.orders[index] || 0,
   })) || [];
 
-  // Calculate metrics
-  const todayRevenue = stats?.total_processed_amount || 0;
-  const totalOrders = stats?.total_orders || 0;
-  const processedOrders = stats?.processed_orders || 0;
-  const successRate = totalOrders > 0 ? ((processedOrders / totalOrders) * 100).toFixed(1) : '0.0';
-  const avgTransactionValue = processedOrders > 0 ? (todayRevenue / processedOrders) : 0;
+  // Calculate metrics (handled via stats.payout and stats.payin now)
+  const payoutStats = stats?.payout || {};
+  const payinStats = stats?.payin || {};
+  const trends = dashboardStats?.metric_trends || {};
+
+
 
   if (loading) {
     return (
@@ -171,70 +171,70 @@ export function Dashboard() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
             title="Payout Success"
-            value={formatCurrency(todayRevenue)}
+            value={formatCurrency(payoutStats.success_amount || 0)}
             icon={DollarSign}
-            change={`${(dashboardStats?.metric_trends?.volume_change_pct || 0) > 0 ? '+' : ''}${dashboardStats?.metric_trends?.volume_change_pct || 0}%`}
+            change={`${(trends.payout?.volume_change_pct || 0) > 0 ? '+' : ''}${trends.payout?.volume_change_pct || 0}%`}
             changeLabel="vs last month"
-            trend={(dashboardStats?.metric_trends?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
+            trend={(trends.payout?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
           />
           <MetricCard
             title="Payout Pending"
-            value={formatCurrency(todayRevenue)}
+            value={formatCurrency(payoutStats.pending_amount || 0)}
             icon={DollarSign}
-            change={`${(dashboardStats?.metric_trends?.volume_change_pct || 0) > 0 ? '+' : ''}${dashboardStats?.metric_trends?.volume_change_pct || 0}%`}
+            change={`${(trends.payout?.volume_change_pct || 0) > 0 ? '+' : ''}${trends.payout?.volume_change_pct || 0}%`}
             changeLabel="vs last month"
-            trend={(dashboardStats?.metric_trends?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
+            trend={(trends.payout?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
           />
           <MetricCard
             title="Payout Failed"
-            value={formatCurrency(todayRevenue)}
+            value={formatCurrency(payoutStats.failed_amount || 0)}
             icon={DollarSign}
-            change={`${(dashboardStats?.metric_trends?.volume_change_pct || 0) > 0 ? '+' : ''}${dashboardStats?.metric_trends?.volume_change_pct || 0}%`}
+            change={`${(trends.payout?.volume_change_pct || 0) > 0 ? '+' : ''}${trends.payout?.volume_change_pct || 0}%`}
             changeLabel="vs last month"
-            trend={(dashboardStats?.metric_trends?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
+            trend={(trends.payout?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
           />
           <MetricCard
             title="Success Rate"
-            value={`${successRate}%`}
+            value={`${payoutStats.success_rate || 0}%`}
             icon={Activity}
-            change={`${(dashboardStats?.metric_trends?.success_rate_change_pct || 0) > 0 ? '+' : ''}${dashboardStats?.metric_trends?.success_rate_change_pct || 0}%`}
+            change={`${(trends.payout?.success_rate_change_pct || 0) > 0 ? '+' : ''}${trends.payout?.success_rate_change_pct || 0}%`}
             changeLabel="vs last week"
-            trend={(dashboardStats?.metric_trends?.success_rate_change_pct || 0) >= 0 ? 'up' : 'down'}
+            trend={(trends.payout?.success_rate_change_pct || 0) >= 0 ? 'up' : 'down'}
           />
           <MetricCard
             title="Payin Success"
-            value={formatCurrency(todayRevenue)}
+            value={formatCurrency(payinStats.success_amount || 0)}
             icon={DollarSign}
-            change={`${(dashboardStats?.metric_trends?.volume_change_pct || 0) > 0 ? '+' : ''}${dashboardStats?.metric_trends?.volume_change_pct || 0}%`}
+            change={`${(trends.payin?.volume_change_pct || 0) > 0 ? '+' : ''}${trends.payin?.volume_change_pct || 0}%`}
             changeLabel="vs last month"
-            trend={(dashboardStats?.metric_trends?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
+            trend={(trends.payin?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
           />
           <MetricCard
             title="Payin Pending"
-            value={formatCurrency(todayRevenue)}
+            value={formatCurrency(payinStats.pending_amount || 0)}
             icon={DollarSign}
-            change={`${(dashboardStats?.metric_trends?.volume_change_pct || 0) > 0 ? '+' : ''}${dashboardStats?.metric_trends?.volume_change_pct || 0}%`}
+            change={`${(trends.payin?.volume_change_pct || 0) > 0 ? '+' : ''}${trends.payin?.volume_change_pct || 0}%`}
             changeLabel="vs last month"
-            trend={(dashboardStats?.metric_trends?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
+            trend={(trends.payin?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
           />
           <MetricCard
             title="Payin Failed"
-            value={formatCurrency(todayRevenue)}
+            value={formatCurrency(payinStats.failed_amount || 0)}
             icon={DollarSign}
-            change={`${(dashboardStats?.metric_trends?.volume_change_pct || 0) > 0 ? '+' : ''}${dashboardStats?.metric_trends?.volume_change_pct || 0}%`}
+            change={`${(trends.payin?.volume_change_pct || 0) > 0 ? '+' : ''}${trends.payin?.volume_change_pct || 0}%`}
             changeLabel="vs last month"
-            trend={(dashboardStats?.metric_trends?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
+            trend={(trends.payin?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
           />
           <MetricCard
             title="Success Rate"
-            value={`${successRate}%`}
+            value={`${payinStats.success_rate || 0}%`}
             icon={Activity}
-            change={`${(dashboardStats?.metric_trends?.success_rate_change_pct || 0) > 0 ? '+' : ''}${dashboardStats?.metric_trends?.success_rate_change_pct || 0}%`}
+            change={`${(trends.payin?.success_rate_change_pct || 0) > 0 ? '+' : ''}${trends.payin?.success_rate_change_pct || 0}%`}
             changeLabel="vs last week"
-            trend={(dashboardStats?.metric_trends?.success_rate_change_pct || 0) >= 0 ? 'up' : 'down'}
+            trend={(trends.payin?.success_rate_change_pct || 0) >= 0 ? 'up' : 'down'}
           />
         </div>
 
