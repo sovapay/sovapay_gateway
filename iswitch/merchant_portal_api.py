@@ -495,13 +495,79 @@ def get_ledger_details(ledger_id):
         return None
 
 @frappe.whitelist()
-def get_dashboard_chart_data(period='Last 7 days'):
+def get_dashboard_chart_data(period='Last 7 days', from_date=None, to_date=None):
     """Fetch aggregated chart data for dashboard"""
     try:
         merchant_id = get_logged_in_merchant_id()
         
         if not merchant_id:
-            return {"labels": [], "revenue": [], "orders": []}
+            return {"labels": [], "payout": [], "payin": []}
+
+        # Calculate date range
+        if from_date and to_date:
+            start = frappe.utils.getdate(str(from_date)[:10])
+            end = frappe.utils.getdate(str(to_date)[:10])
+        else:
+            days = 7
+            if period == 'Last 30 days':
+                days = 30
+            elif period == 'Last 90 days':
+                days = 90
+            
+            if period == 'Today':
+                start = frappe.utils.getdate(frappe.utils.nowdate())
+                end = frappe.utils.getdate(frappe.utils.nowdate())
+            else:
+                start = frappe.utils.add_days(frappe.utils.nowdate(), -days)
+                end = frappe.utils.getdate(frappe.utils.nowdate())
+
+        from_date_str = str(start) + " 00:00:00"
+        to_date_str = str(end) + " 23:59:59"
+        
+        # Get aggregations
+        data = frappe.db.sql("""
+            SELECT 
+                DATE(creation) as date,
+                SUM(CASE WHEN order_type = 'Pay' AND status = 'Processed' THEN COALESCE(order_amount, 0) ELSE 0 END) as payout,
+                SUM(CASE WHEN order_type = 'Topup' AND status = 'Processed' THEN COALESCE(order_amount, 0) ELSE 0 END) as payin
+            FROM `tabOrder`
+            WHERE merchant_ref_id = %s 
+            AND creation >= %s AND creation <= %s
+            GROUP BY DATE(creation)
+            ORDER BY date ASC
+        """, (merchant_id, from_date_str, to_date_str), as_dict=True)
+        
+        # Fill missing dates
+        date_map = {str(d.date): d for d in data}
+        
+        labels = []
+        payout_data = []
+        payin_data = []
+        
+        # Generate full date range
+        curr = start
+        while curr <= end:
+            date_str = str(curr)
+            labels.append(curr.strftime("%b %d")) # Format: Jan 01
+            
+            if date_str in date_map:
+                payout_data.append(float(date_map[date_str].payout or 0))
+                payin_data.append(float(date_map[date_str].payin or 0))
+            else:
+                payout_data.append(0)
+                payin_data.append(0)
+            
+            curr = frappe.utils.add_days(curr, 1)
+            
+        return {
+            "labels": labels,
+            "payout": payout_data,
+            "payin": payin_data
+        }
+
+    except Exception as e:
+        frappe.log_error(f"Error in get_dashboard_chart_data: {str(e)}", "Merchant Portal API")
+        return {"labels": [], "payout": [], "payin": []}
 
         # Calculate date range
         days = 7

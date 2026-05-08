@@ -111,10 +111,10 @@ export function Dashboard() {
   const wallet = dashboardStats?.wallet;
 
   // Prepare chart data
-  const revenueChartData = chartData?.labels?.map((label, index) => ({
+  const revenueChartData = chartData?.labels?.map((label: string, index: number) => ({
     date: label,
-    volume: chartData.revenue[index] || 0,
-    orders: chartData.orders[index] || 0,
+    payout: chartData.payout[index] || 0,
+    payin: chartData.payin[index] || 0,
   })) || [];
 
   // Calculate metrics (handled via stats.payout and stats.payin now)
