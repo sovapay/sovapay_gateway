@@ -31,12 +31,12 @@ import {
 export const description = "An interactive area chart"
 
 const chartConfig = {
-    volume: {
-        label: "Volume",
+    payout: {
+        label: "Payout",
         color: "hsl(var(--chart-1))",
     },
-    orders: {
-        label: "Orders",
+    payin: {
+        label: "Payin",
         color: "hsl(var(--chart-2))",
     },
 } satisfies ChartConfig
@@ -123,13 +123,13 @@ export function InteractiveAreaChart({ data, period = "Last 90 days", onPeriodCh
 
                     {/* LEFT: Title + Description */}
                     <div className="flex flex-col gap-1">
-                        <CardTitle>Volume & Orders</CardTitle>
+                        <CardTitle>Payout & Payin</CardTitle>
                         <CardDescription>
                             {isCustom && fromDate && toDate
                                 ? `${fromDate} → ${toDate}`
                                 : isCustom
                                 ? "Custom range"
-                                : period || "Showing total volume and orders"}
+                                : period || "Showing total payout and payin"}
                         </CardDescription>
                     </div>
 
@@ -228,27 +228,27 @@ export function InteractiveAreaChart({ data, period = "Last 90 days", onPeriodCh
                 >
                     <AreaChart data={data}>
                         <defs>
-                            <linearGradient id="fillVolume" x1="0" y1="0" x2="0" y2="1">
+                            <linearGradient id="fillPayout" x1="0" y1="0" x2="0" y2="1">
                                 <stop
                                     offset="5%"
-                                    stopColor="var(--color-volume)"
+                                    stopColor="var(--color-payout)"
                                     stopOpacity={0.8}
                                 />
                                 <stop
                                     offset="95%"
-                                    stopColor="var(--color-volume)"
+                                    stopColor="var(--color-payout)"
                                     stopOpacity={0.1}
                                 />
                             </linearGradient>
-                            <linearGradient id="fillOrders" x1="0" y1="0" x2="0" y2="1">
+                            <linearGradient id="fillPayin" x1="0" y1="0" x2="0" y2="1">
                                 <stop
                                     offset="5%"
-                                    stopColor="var(--color-orders)"
+                                    stopColor="var(--color-payin)"
                                     stopOpacity={0.8}
                                 />
                                 <stop
                                     offset="95%"
-                                    stopColor="var(--color-orders)"
+                                    stopColor="var(--color-payin)"
                                     stopOpacity={0.1}
                                 />
                             </linearGradient>
@@ -302,18 +302,18 @@ export function InteractiveAreaChart({ data, period = "Last 90 days", onPeriodCh
                         />
                         <Area
                             yAxisId="right"
-                            dataKey="orders"
+                            dataKey="payin"
                             type="monotone"
-                            fill="url(#fillOrders)"
-                            stroke="var(--color-orders)"
+                            fill="url(#fillPayin)"
+                            stroke="var(--color-payin)"
                             stackId="a"
                         />
                         <Area
                             yAxisId="left"
-                            dataKey="volume"
+                            dataKey="payout"
                             type="monotone"
-                            fill="url(#fillVolume)"
-                            stroke="var(--color-volume)"
+                            fill="url(#fillPayout)"
+                            stroke="var(--color-payout)"
                             stackId="a"
                         />
                         <ChartLegend content={<ChartLegendContent />} />
