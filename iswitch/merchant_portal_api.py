@@ -518,7 +518,8 @@ def get_dashboard_chart_data(period='Last 7 days', from_date=None, to_date=None)
                 start = frappe.utils.getdate(frappe.utils.nowdate())
                 end = frappe.utils.getdate(frappe.utils.nowdate())
             else:
-                start = frappe.utils.add_days(frappe.utils.nowdate(), -days)
+                # Fix: wrap add_days with getdate() so it returns a date object
+                start = frappe.utils.getdate(frappe.utils.add_days(frappe.utils.nowdate(), -days))
                 end = frappe.utils.getdate(frappe.utils.nowdate())
 
         from_date_str = str(start) + " 00:00:00"
@@ -544,11 +545,10 @@ def get_dashboard_chart_data(period='Last 7 days', from_date=None, to_date=None)
         payout_data = []
         payin_data = []
         
-        # Generate full date range
         curr = start
         while curr <= end:
             date_str = str(curr)
-            labels.append(curr.strftime("%b %d")) # Format: Jan 01
+            labels.append(curr.strftime("%b %d"))
             
             if date_str in date_map:
                 payout_data.append(float(date_map[date_str].payout or 0))
@@ -557,7 +557,8 @@ def get_dashboard_chart_data(period='Last 7 days', from_date=None, to_date=None)
                 payout_data.append(0)
                 payin_data.append(0)
             
-            curr = frappe.utils.add_days(curr, 1)
+            # Fix: wrap add_days with getdate() so curr stays a date object
+            curr = frappe.utils.getdate(frappe.utils.add_days(curr, 1))
             
         return {
             "labels": labels,
@@ -569,74 +570,7 @@ def get_dashboard_chart_data(period='Last 7 days', from_date=None, to_date=None)
         frappe.log_error(f"Error in get_dashboard_chart_data: {str(e)}", "Merchant Portal API")
         return {"labels": [], "payout": [], "payin": []}
 
-        # Calculate date range
-        days = 7
-        if period == 'Last 30 days':
-            days = 30
-        elif period == 'Last 90 days':
-            days = 90
-            
-        from_date = frappe.utils.add_days(frappe.utils.nowdate(), -days)
         
-        # Get aggregations
-        data = frappe.db.sql("""
-            SELECT 
-                DATE(creation) as date,
-                COUNT(*) as count,
-                SUM(CASE WHEN status = 'Processed' THEN order_amount ELSE 0 END) as revenue
-            FROM `tabOrder`
-            WHERE merchant_ref_id = %s 
-            AND creation >= %s
-            GROUP BY DATE(creation)
-            ORDER BY date ASC
-        """, (merchant_id, from_date), as_dict=True)
-        
-        # Fill missing dates
-        date_map = {str(d.date): d for d in data}
-        labels = []
-        revenue_data = []
-        orders_data = []
-        
-        for i in range(days):
-            current_date = frappe.utils.add_days(from_date, i + 1) # Start from tomorrow relative to start, up to today roughly? Or verify range. 
-            # Actually standard is usually inclusive. Loop 0 to days-1 or similar.
-            # let's map properly.
-            pass
-
-        # Re-doing loop cleanly
-        labels = []
-        revenue_data = []
-        orders_data = []
-        
-        # We want data up to today
-        today = frappe.utils.getdate(frappe.utils.nowdate())
-        start = frappe.utils.getdate(from_date)
-        
-        # Generate full date range
-        curr = start
-        while curr <= today:
-            date_str = str(curr)
-            labels.append(curr.strftime("%b %d")) # Format: Jan 01
-            
-            if date_str in date_map:
-                revenue_data.append(float(date_map[date_str].revenue or 0))
-                orders_data.append(int(date_map[date_str].count or 0))
-            else:
-                revenue_data.append(0)
-                orders_data.append(0)
-            
-            curr = frappe.utils.add_days(curr, 1)
-            
-        return {
-            "labels": labels,
-            "revenue": revenue_data,
-            "orders": orders_data
-        }
-
-    except Exception as e:
-        frappe.log_error(f"Error in get_dashboard_chart_data: {str(e)}", "Merchant Portal API")
-        return {"labels": [], "revenue": [], "orders": []}
-
 @frappe.whitelist()
 def get_van_logs(filter_data=None, page=1, page_size=20):
     """Get Virtual Account Network logs using SQL"""

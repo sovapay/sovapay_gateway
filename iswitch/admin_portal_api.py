@@ -139,8 +139,8 @@ def get_dashboard_stats(period='Last 30 days', merchant=None, from_date=None, to
         daily_stats = frappe.db.sql(f"""
             SELECT 
                 DATE(creation) as date,
-                SUM(CASE WHEN order_type = 'Pay' AND status = 'Processed' THEN COALESCE(order_amount, 0) ELSE 0 END) as payout,
-                SUM(CASE WHEN order_type = 'Topup' AND status = 'Processed' THEN COALESCE(order_amount, 0) ELSE 0 END) as payin
+                SUM(CASE WHEN order_type = 'Pay' AND status = 'Processed' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payout,
+                SUM(CASE WHEN order_type = 'Topup' AND status = 'Processed' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payin
             FROM `tabOrder`
             WHERE {chart_where}
             GROUP BY DATE(creation)
@@ -184,10 +184,10 @@ def get_dashboard_stats(period='Last 30 days', merchant=None, from_date=None, to
         
         vols = frappe.db.sql(f"""
             SELECT 
-                SUM(CASE WHEN order_type = 'Pay' AND creation >= %(current_month_start)s THEN order_amount ELSE 0 END) as current_payout_vol,
-                SUM(CASE WHEN order_type = 'Topup' AND creation >= %(current_month_start)s THEN order_amount ELSE 0 END) as current_payin_vol,
-                SUM(CASE WHEN order_type = 'Pay' AND creation >= %(last_month_start)s AND creation < %(current_month_start)s THEN order_amount ELSE 0 END) as last_payout_vol,
-                SUM(CASE WHEN order_type = 'Topup' AND creation >= %(last_month_start)s AND creation < %(current_month_start)s THEN order_amount ELSE 0 END) as last_payin_vol
+                SUM(CASE WHEN order_type = 'Pay' AND creation >= %(current_month_start)s THEN transaction_amount ELSE 0 END) as current_payout_vol,
+                SUM(CASE WHEN order_type = 'Topup' AND creation >= %(current_month_start)s THEN transaction_amount ELSE 0 END) as current_payin_vol,
+                SUM(CASE WHEN order_type = 'Pay' AND creation >= %(last_month_start)s AND creation < %(current_month_start)s THEN transaction_amount ELSE 0 END) as last_payout_vol,
+                SUM(CASE WHEN order_type = 'Topup' AND creation >= %(last_month_start)s AND creation < %(current_month_start)s THEN transaction_amount ELSE 0 END) as last_payin_vol
             FROM `tabOrder`
             WHERE {metric_where(["status='Processed'"])}
         """, {**base_values, "current_month_start": current_month_start, "last_month_start": last_month_start}, as_dict=True)[0]

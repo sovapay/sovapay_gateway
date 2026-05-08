@@ -158,7 +158,7 @@ export function AdminDashboard() {
               icon={DollarSign}
               change={`${(trends.payout?.volume_change_pct || 0) > 0 ? '+' : ''}${trends.payout?.volume_change_pct || 0}% vs last month`}
               trend={(trends.payout?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
-              color={(trends.payout?.volume_change_pct || 0) >= 0 ? 'success' : 'error'}
+              color="success"
             />
             <MetricCard
               title="Payout Pending"
@@ -190,7 +190,7 @@ export function AdminDashboard() {
               icon={DollarSign}
               change={`${(trends.payin?.volume_change_pct || 0) > 0 ? '+' : ''}${trends.payin?.volume_change_pct || 0}% vs last month`}
               trend={(trends.payin?.volume_change_pct || 0) >= 0 ? 'up' : 'down'}
-              color={(trends.payin?.volume_change_pct || 0) >= 0 ? 'success' : 'error'}
+              color="success"
             />
             <MetricCard
               title="Payin Pending"
