@@ -48,30 +48,58 @@ def get_dashboard_stats():
                 balance = (account.credits_posted - account.debits_posted - account.debits_pending) / 100
         
         # Get order statistics using optimized SQL
-        order_stats = frappe.db.sql("""
+        order_stats = frappe.db.sql('''
             SELECT 
-                COUNT(*) as total_orders,
-                SUM(CASE WHEN status = 'Processed' THEN 1 ELSE 0 END) as processed_orders,
-                SUM(CASE WHEN status IN ('Pending', 'Processing', 'Queued') THEN 1 ELSE 0 END) as pending_orders,
-                SUM(CASE WHEN status IN ('Cancelled', 'Reversed', 'Failed') THEN 1 ELSE 0 END) as cancelled_orders,
-                SUM(CASE WHEN status = 'Processed' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as total_processed_amount
+                SUM(CASE WHEN order_type = 'Pay' THEN 1 ELSE 0 END) as payout_total_orders,
+                SUM(CASE WHEN status = 'Processed' AND order_type = 'Pay' THEN 1 ELSE 0 END) as payout_processed_orders,
+                SUM(CASE WHEN status IN ('Pending', 'Processing', 'Queued') AND order_type = 'Pay' THEN 1 ELSE 0 END) as payout_pending_orders,
+                SUM(CASE WHEN status IN ('Cancelled', 'Reversed', 'Failed') AND order_type = 'Pay' THEN 1 ELSE 0 END) as payout_cancelled_orders,
+                SUM(CASE WHEN status = 'Processed' AND order_type = 'Pay' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payout_success_amount,
+                SUM(CASE WHEN status IN ('Pending', 'Processing', 'Queued') AND order_type = 'Pay' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payout_pending_amount,
+                SUM(CASE WHEN status IN ('Cancelled', 'Reversed', 'Failed') AND order_type = 'Pay' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payout_failed_amount,
+
+                SUM(CASE WHEN order_type = 'Topup' THEN 1 ELSE 0 END) as payin_total_orders,
+                SUM(CASE WHEN status = 'Processed' AND order_type = 'Topup' THEN 1 ELSE 0 END) as payin_processed_orders,
+                SUM(CASE WHEN status IN ('Pending', 'Processing', 'Queued') AND order_type = 'Topup' THEN 1 ELSE 0 END) as payin_pending_orders,
+                SUM(CASE WHEN status IN ('Cancelled', 'Reversed', 'Failed') AND order_type = 'Topup' THEN 1 ELSE 0 END) as payin_cancelled_orders,
+                SUM(CASE WHEN status = 'Processed' AND order_type = 'Topup' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payin_success_amount,
+                SUM(CASE WHEN status IN ('Pending', 'Processing', 'Queued') AND order_type = 'Topup' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payin_pending_amount,
+                SUM(CASE WHEN status IN ('Cancelled', 'Reversed', 'Failed') AND order_type = 'Topup' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payin_failed_amount
             FROM `tabOrder`
             WHERE merchant_ref_id = %s
-        """, (merchant_id,), as_dict=True)
+        ''', (merchant_id,), as_dict=True)
         
         stats = order_stats[0] if order_stats else {}
         
+        def get_rate(processed, total):
+            return round((processed / total) * 100, 1) if total else 0.0
+
         return {
             "wallet": {
                 "balance": balance,
                 "status": "Active"  # Default status since we're using TigerBeetle
             },
             "stats": {
-                "total_orders": int(stats.get('total_orders') or 0),
-                "processed_orders": int(stats.get('processed_orders') or 0),
-                "pending_orders": int(stats.get('pending_orders') or 0),
-                "cancelled_orders": int(stats.get('cancelled_orders') or 0),
-                "total_processed_amount": float(stats.get('total_processed_amount') or 0)
+                "payout": {
+                    "total_orders": int(stats.get('payout_total_orders') or 0),
+                    "processed_orders": int(stats.get('payout_processed_orders') or 0),
+                    "pending_orders": int(stats.get('payout_pending_orders') or 0),
+                    "cancelled_orders": int(stats.get('payout_cancelled_orders') or 0),
+                    "success_amount": float(stats.get('payout_success_amount') or 0),
+                    "pending_amount": float(stats.get('payout_pending_amount') or 0),
+                    "failed_amount": float(stats.get('payout_failed_amount') or 0),
+                    "success_rate": get_rate(stats.get('payout_processed_orders'), stats.get('payout_total_orders'))
+                },
+                "payin": {
+                    "total_orders": int(stats.get('payin_total_orders') or 0),
+                    "processed_orders": int(stats.get('payin_processed_orders') or 0),
+                    "pending_orders": int(stats.get('payin_pending_orders') or 0),
+                    "cancelled_orders": int(stats.get('payin_cancelled_orders') or 0),
+                    "success_amount": float(stats.get('payin_success_amount') or 0),
+                    "pending_amount": float(stats.get('payin_pending_amount') or 0),
+                    "failed_amount": float(stats.get('payin_failed_amount') or 0),
+                    "success_rate": get_rate(stats.get('payin_processed_orders'), stats.get('payin_total_orders'))
+                }
             },
             "metric_trends": get_metric_trends(merchant_id)
         }
@@ -81,104 +109,84 @@ def get_dashboard_stats():
         return get_empty_stats()
 
 def get_metric_trends(merchant_id):
-    """Calculate trends for dashboard metrics"""
+    """Calculate trends for dashboard metrics split by Payin/Payout"""
     try:
         today = frappe.utils.getdate(frappe.utils.nowdate())
+        from datetime import timedelta
         
-        # 1. Revenue Change (Current Month vs Last Month)
         current_month_start = today.replace(day=1)
-        # Calculate last month start/end
         last_month_end = current_month_start - timedelta(days=1)
         last_month_start = last_month_end.replace(day=1)
         
-        current_vol = frappe.db.sql("""
-            SELECT SUM(order_amount) as total
+        vols = frappe.db.sql('''
+            SELECT 
+                SUM(CASE WHEN order_type = 'Pay' AND creation >= %s THEN order_amount ELSE 0 END) as current_payout_vol,
+                SUM(CASE WHEN order_type = 'Topup' AND creation >= %s THEN order_amount ELSE 0 END) as current_payin_vol,
+                SUM(CASE WHEN order_type = 'Pay' AND creation >= %s AND creation < %s THEN order_amount ELSE 0 END) as last_payout_vol,
+                SUM(CASE WHEN order_type = 'Topup' AND creation >= %s AND creation < %s THEN order_amount ELSE 0 END) as last_payin_vol
             FROM `tabOrder`
-            WHERE merchant_ref_id=%s AND status='Processed' AND creation >= %s
-        """, (merchant_id, current_month_start), as_dict=True)[0].total or 0
+            WHERE merchant_ref_id=%s AND status='Processed'
+        ''', (current_month_start, current_month_start, last_month_start, current_month_start, last_month_start, current_month_start, merchant_id), as_dict=True)[0]
         
-        last_vol = frappe.db.sql("""
-            SELECT SUM(order_amount) as total
-            FROM `tabOrder`
-            WHERE merchant_ref_id=%s AND status='Processed' AND creation >= %s AND creation < %s
-        """, (merchant_id, last_month_start, current_month_start), as_dict=True)[0].total or 0
-        
-        volume_change_pct = 0
-        if last_vol > 0:
-            volume_change_pct = ((current_vol - last_vol) / last_vol) * 100
-        elif current_vol > 0:
-            volume_change_pct = 100
+        def calc_change(current, last):
+            if last > 0: return ((current - last) / last) * 100
+            if current > 0: return 100
+            return 0
+            
+        payout_vol_change = calc_change(vols.get('current_payout_vol') or 0, vols.get('last_payout_vol') or 0)
+        payin_vol_change = calc_change(vols.get('current_payin_vol') or 0, vols.get('last_payin_vol') or 0)
 
-        # 2. Avg Order Value Trend (Current Month vs Last Month)
-        current_orders_count = frappe.db.count("Order", filters={
-            "merchant_ref_id": merchant_id, "status": "Processed", "creation": (">=", current_month_start)
-        })
-        last_orders_count = frappe.db.count("Order", filters={
-            "merchant_ref_id": merchant_id, "status": "Processed", 
-            "creation": ["between", [last_month_start, last_month_end]]
-        })
-        
-        current_aov = current_vol / current_orders_count if current_orders_count else 0
-        last_aov = last_vol / last_orders_count if last_orders_count else 0
-        
-        aov_change_pct = 0
-        if last_aov > 0:
-            aov_change_pct = ((current_aov - last_aov) / last_aov) * 100
-        elif current_aov > 0:
-            aov_change_pct = 100
-
-        # 3. Success Rate Trend (Last 7 days vs Previous 7 days)
+        # Success Rate Trend
         last_7_start = today - timedelta(days=7)
         prev_7_start = today - timedelta(days=14)
         
-        def get_success_rate(start, end):
-            stats = frappe.db.sql("""
+        def get_success_rates(start, end):
+            stats = frappe.db.sql('''
                 SELECT 
-                    COUNT(*) as total,
-                    SUM(CASE WHEN status='Processed' THEN 1 ELSE 0 END) as processed
+                    SUM(CASE WHEN order_type = 'Pay' THEN 1 ELSE 0 END) as payout_total,
+                    SUM(CASE WHEN status='Processed' AND order_type = 'Pay' THEN 1 ELSE 0 END) as payout_processed,
+                    SUM(CASE WHEN order_type = 'Topup' THEN 1 ELSE 0 END) as payin_total,
+                    SUM(CASE WHEN status='Processed' AND order_type = 'Topup' THEN 1 ELSE 0 END) as payin_processed
                 FROM `tabOrder`
                 WHERE merchant_ref_id=%s AND creation >= %s AND creation < %s
-            """, (merchant_id, start, end), as_dict=True)
-            if not stats or not stats[0].total: return 0.0
-            return (stats[0].processed / stats[0].total) * 100
-        
-        current_rate = get_success_rate(last_7_start, today + timedelta(days=1))
-        # Note: 'end' date in sql usually exclusive if using < next_day, or inclusive if <= . 
-        # Using < today+1 covers today.
-        
-        prev_rate = get_success_rate(prev_7_start, last_7_start)
-        rate_diff = current_rate - prev_rate
-
-        # 4. Total Orders (This Week)
-        week_start = today - timedelta(days=today.weekday())
-        orders_this_week = frappe.db.count("Order", filters={
-            "merchant_ref_id": merchant_id, "creation": (">=", week_start)
-        })
+            ''', (merchant_id, start, end), as_dict=True)[0]
+            
+            payout_rate = (stats.get('payout_processed') or 0) / (stats.get('payout_total') or 1) * 100 if stats.get('payout_total') else 0.0
+            payin_rate = (stats.get('payin_processed') or 0) / (stats.get('payin_total') or 1) * 100 if stats.get('payin_total') else 0.0
+            return payout_rate, payin_rate
+            
+        current_payout_rate, current_payin_rate = get_success_rates(last_7_start, today + timedelta(days=1))
+        prev_payout_rate, prev_payin_rate = get_success_rates(prev_7_start, last_7_start)
 
         return {
-            "volume_change_pct": round(volume_change_pct, 1),
-            "aov_change_pct": round(aov_change_pct, 1),
-            "success_rate_change_pct": round(rate_diff, 1),
-            "orders_this_week": orders_this_week
+            "payout": {
+                "volume_change_pct": round(payout_vol_change, 1),
+                "success_rate_change_pct": round(current_payout_rate - prev_payout_rate, 1)
+            },
+            "payin": {
+                "volume_change_pct": round(payin_vol_change, 1),
+                "success_rate_change_pct": round(current_payin_rate - prev_payin_rate, 1)
+            }
         }
-    except Exception:
-        return {}
+    except Exception as e:
+        frappe.log_error(f"Error in get_metric_trends: {str(e)}", "Merchant Portal API")
+        return {
+            "payout": {"volume_change_pct": 0, "success_rate_change_pct": 0},
+            "payin": {"volume_change_pct": 0, "success_rate_change_pct": 0}
+        }
 
 def get_empty_stats():
     """Return empty stats structure"""
     return {
         "wallet": {"balance": 0, "status": "Inactive"},
         "stats": {
-            "total_orders": 0,
-            "processed_orders": 0,
-            "pending_orders": 0,
-            "cancelled_orders": 0,
-            "total_processed_amount": 0,
-            "total_pending_amount": 0,
-            "total_cancelled_amount": 0,
-            "total_orders_amount": 0
+            "payout": {"total_orders": 0, "processed_orders": 0, "pending_orders": 0, "cancelled_orders": 0, "success_amount": 0, "pending_amount": 0, "failed_amount": 0, "success_rate": 0.0},
+            "payin": {"total_orders": 0, "processed_orders": 0, "pending_orders": 0, "cancelled_orders": 0, "success_amount": 0, "pending_amount": 0, "failed_amount": 0, "success_rate": 0.0}
         },
-        "metric_trends": {}
+        "metric_trends": {
+            "payout": {"volume_change_pct": 0, "success_rate_change_pct": 0},
+            "payin": {"volume_change_pct": 0, "success_rate_change_pct": 0}
+        }
     }
 
 @frappe.whitelist()
