@@ -459,13 +459,13 @@ export function AdminReports() {
                 {/* Tab Content */}
                 {activeTab === 'overview' && (
                     <div className="space-y-6">
-                        {/* Metric Cards */}
+                        {/* Metric Cards — Revenue Overview */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             <Card>
                                 <div className="flex items-start justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-slate-500">Total Volume</p>
-                                        <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(metrics.total_volume)}</p>
+                                        <p className="text-sm font-medium text-slate-500">Total Payout Revenue</p>
+                                        <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(metrics.payout_revenue || 0)}</p>
                                     </div>
                                     <div className="p-2 bg-slate-50 rounded-lg text-slate-400">
                                         <TrendingUp className="w-5 h-5" />
@@ -475,8 +475,8 @@ export function AdminReports() {
                             <Card>
                                 <div className="flex items-start justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-slate-500">Avg. Transaction</p>
-                                        <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(metrics.avg_transaction)}</p>
+                                        <p className="text-sm font-medium text-slate-500">Total Payin Revenue</p>
+                                        <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(metrics.payin_revenue || 0)}</p>
                                     </div>
                                     <div className="p-2 bg-slate-50 rounded-lg text-slate-400">
                                         <TrendingUp className="w-5 h-5" />
@@ -486,8 +486,8 @@ export function AdminReports() {
                             <Card>
                                 <div className="flex items-start justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-slate-500">Success Rate</p>
-                                        <p className="text-2xl font-bold text-slate-900 mt-1">{metrics.success_rate}%</p>
+                                        <p className="text-sm font-medium text-slate-500">Overall Revenue Margin</p>
+                                        <p className="text-2xl font-bold text-slate-900 mt-1">{metrics.overall_revenue_margin ?? 0}%</p>
                                     </div>
                                     <div className="p-2 bg-slate-50 rounded-lg text-slate-400">
                                         <Activity className="w-5 h-5" />
@@ -498,7 +498,7 @@ export function AdminReports() {
                                 <div className="flex items-start justify-between">
                                     <div>
                                         <p className="text-sm font-medium text-slate-500">New Merchants</p>
-                                        <p className="text-2xl font-bold text-slate-900 mt-1">{metrics.new_merchants}</p>
+                                        <p className="text-2xl font-bold text-slate-900 mt-1">{metrics.new_merchants || 0}</p>
                                     </div>
                                     <div className="p-2 bg-slate-50 rounded-lg text-slate-400">
                                         <Users className="w-5 h-5" />

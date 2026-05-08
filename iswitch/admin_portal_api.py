@@ -3432,15 +3432,26 @@ def get_report_metrics(start_date=None, end_date=None, merchant_id=None):
         
         where_clause = " AND " + " AND ".join(filters) if filters else ""
         
-        # Get transaction metrics from tabOrder
-        # INCLUDED Pending/Processing in Total Volume for visibility in dev/test
+        # Get transaction metrics from tabOrder — revenue = SUM(fee + tax) per order type
         metrics_query = f"""
             SELECT 
                 COUNT(*) as total_transactions,
                 SUM(CASE WHEN status IN ('Processed', 'Success', 'Completed') THEN 1 ELSE 0 END) as successful_transactions,
                 SUM(CASE WHEN status IN ('Failed', 'Cancelled', 'Reversed') THEN 1 ELSE 0 END) as failed_transactions,
                 SUM(CASE WHEN status NOT IN ('Failed', 'Cancelled', 'Reversed') THEN COALESCE(order_amount, 0) ELSE 0 END) as total_volume,
-                AVG(CASE WHEN status NOT IN ('Failed', 'Cancelled', 'Reversed') THEN COALESCE(order_amount, 0) ELSE NULL END) as avg_transaction
+                AVG(CASE WHEN status NOT IN ('Failed', 'Cancelled', 'Reversed') THEN COALESCE(order_amount, 0) ELSE NULL END) as avg_transaction,
+
+                -- Payout revenue (order_type = 'Pay'): sum of fee + tax on processed orders
+                SUM(CASE WHEN order_type = 'Pay' AND status = 'Processed'
+                    THEN COALESCE(fee, 0) + COALESCE(tax, 0) ELSE 0 END) as payout_revenue,
+                SUM(CASE WHEN order_type = 'Pay' AND status = 'Processed'
+                    THEN COALESCE(order_amount, 0) ELSE 0 END) as payout_volume,
+
+                -- Payin revenue (order_type = 'Topup'): sum of fee + tax on processed orders
+                SUM(CASE WHEN order_type = 'Topup' AND status = 'Processed'
+                    THEN COALESCE(fee, 0) + COALESCE(tax, 0) ELSE 0 END) as payin_revenue,
+                SUM(CASE WHEN order_type = 'Topup' AND status = 'Processed'
+                    THEN COALESCE(order_amount, 0) ELSE 0 END) as payin_volume
             FROM `tabOrder`
             WHERE 1=1 {where_clause}
         """
@@ -3451,6 +3462,11 @@ def get_report_metrics(start_date=None, end_date=None, merchant_id=None):
         success_rate = 0
         if metrics['total_transactions'] > 0:
             success_rate = (metrics['successful_transactions'] / metrics['total_transactions']) * 100
+
+        # Overall revenue margin = total revenue / total volume * 100
+        total_revenue = float(metrics.get('payout_revenue') or 0) + float(metrics.get('payin_revenue') or 0)
+        total_processed_vol = float(metrics.get('payout_volume') or 0) + float(metrics.get('payin_volume') or 0)
+        overall_margin = round((total_revenue / total_processed_vol) * 100, 2) if total_processed_vol > 0 else 0.0
         
         # Get new merchants count in date range
         merchant_filters = []
@@ -3478,7 +3494,10 @@ def get_report_metrics(start_date=None, end_date=None, merchant_id=None):
             'success_rate': round(success_rate, 2),
             'new_merchants': new_merchants,
             'total_transactions': metrics['total_transactions'],
-            'failed_transactions': metrics['failed_transactions']
+            'failed_transactions': metrics['failed_transactions'],
+            'payout_revenue': float(metrics.get('payout_revenue') or 0),
+            'payin_revenue': float(metrics.get('payin_revenue') or 0),
+            'overall_revenue_margin': overall_margin
         }
         
     except Exception as e:
@@ -3489,7 +3508,10 @@ def get_report_metrics(start_date=None, end_date=None, merchant_id=None):
             'success_rate': 0,
             'new_merchants': 0,
             'total_transactions': 0,
-            'failed_transactions': 0
+            'failed_transactions': 0,
+            'payout_revenue': 0,
+            'payin_revenue': 0,
+            'overall_revenue_margin': 0
         }
 
 @frappe.whitelist()

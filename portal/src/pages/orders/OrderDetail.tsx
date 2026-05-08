@@ -166,9 +166,17 @@ export function OrderDetail() {
                   <span className="text-slate-900">{formatCurrency(order.tax || 0)}</span>
                 </div>
                 <div className="pt-3 border-t border-slate-200 flex justify-between">
-                  <span className="text-base font-medium text-slate-900">Total</span>
+                  <span className="text-base font-medium text-slate-900">
+                    Total
+                    <span className="ml-1.5 text-xs font-normal text-slate-400">
+                      {order.order_type === 'Topup' ? '(amount − fee − tax)' : '(amount + fee + tax)'}
+                    </span>
+                  </span>
                   <span className="text-base font-semibold text-slate-900">
-                    {formatCurrency((order.amount) + (order.fee || 0) + (order.tax || 0))}
+                    {order.order_type === 'Topup'
+                      ? formatCurrency((order.amount || 0) - (order.fee || 0) - (order.tax || 0))
+                      : formatCurrency((order.amount || 0) + (order.fee || 0) + (order.tax || 0))
+                    }
                   </span>
                 </div>
               </div>
