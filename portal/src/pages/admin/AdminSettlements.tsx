@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { DashboardLayout } from '../../components/layout/DashboardLayout';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { Search, Check, X, AlertCircle, Calendar, MoreVertical } from 'lucide-react';
-import { useToast, Button, StatusTabs, Dropdown, DropdownItem } from '../../components/ui';
+import { useToast, Button, StatusTabs, Dropdown, DropdownItem, Select, DateTimePicker } from '../../components/ui';
 import type { StatusTab } from '../../components/ui';
 import { useFrappeGetCall, useFrappePostCall } from 'frappe-react-sdk';
 import { adminMethods } from '../../services/methods';
@@ -19,6 +19,13 @@ export function AdminSettlements() {
     const [showRejectDialog, setShowRejectDialog] = useState(false);
     const [processing, setProcessing] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
+    const [merchantFilter, setMerchantFilter] = useState('all');
+    const [entryTypeFilter, setEntryTypeFilter] = useState('all');
+    const [dateRange, setDateRange] = useState<{ start?: string; end?: string }>({
+        start: undefined,
+        end: undefined
+    });
+
     const pageSize = 10;
     const { success: showSuccess, error: showError } = useToast();
 
@@ -28,9 +35,21 @@ export function AdminSettlements() {
     const { call: approveTopup } = useFrappePostCall(adminMethods.approveTopup);
     const { call: rejectTopup } = useFrappePostCall(adminMethods.rejectTopup);
 
+    // Fetch merchants for filter dropdown
+    const { data: { message: merchantsData } = {} } = useFrappeGetCall(
+        adminMethods.getMerchants,
+        { page: 1, page_size: 100 },
+        'admin-merchants-list-filter'
+    );
+    const merchants = merchantsData?.merchants || [];
+
     // Build filter object
     const filters: any = {};
     if (statusFilter !== 'all') filters.status = statusFilter;
+    if (merchantFilter !== 'all') filters.merchant_id = merchantFilter;
+    if (entryTypeFilter !== 'all') filters.entry_type = entryTypeFilter;
+    if (dateRange.start) filters.from_date = dateRange.start;
+    if (dateRange.end) filters.to_date = dateRange.end;
 
     // Fetch VAN logs
     const { data: { message: vanData } = {}, isLoading: loading, mutate: refetch } = useFrappeGetCall(
@@ -185,9 +204,10 @@ export function AdminSettlements() {
                     }}
                 />
 
-                {/* Search Bar and Filters Button */}
-                <div className="flex items-center gap-3">
-                    <div className="relative flex-1">
+                {/* Filters Row */}
+                <div className="flex flex-col md:flex-row items-center gap-4">
+                    {/* Search Bar */}
+                    <div className="relative flex-1 w-full">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                         <input
                             type="text"
@@ -197,22 +217,31 @@ export function AdminSettlements() {
                             className="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-200 rounded-lg placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
                         />
                     </div>
+                    
+                    {/* Entry Type Filter */}
+                    <div className="w-full md:w-48">
+                        <Select
+                            value={entryTypeFilter}
+                            onChange={(e) => setEntryTypeFilter(e.target.value)}
+                            options={[
+                                { value: 'all', label: 'All Entry Types' },
+                                { value: 'Admin', label: 'Admin' },
+                                { value: 'Merchant', label: 'Merchant' },
+                                { value: 'Realtime', label: 'Realtime' },
+                            ]}
+                        />
+                    </div>
+
                     <button
                         onClick={() => setShowFilters(!showFilters)}
-                        className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap"
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border rounded-lg transition-all whitespace-nowrap ${showFilters || dateRange.start || dateRange.end || merchantFilter !== 'all' ? 'text-primary-700 bg-primary-50 border-primary-200' : 'text-slate-700 bg-white border-slate-200 hover:bg-slate-50'}`}
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                         </svg>
-                        <span>Filters</span>
-                        {showFilters ? (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                            </svg>
-                        ) : (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
+                        <span>More Filters</span>
+                        {(dateRange.start || dateRange.end || merchantFilter !== 'all') && (
+                            <span className="w-2 h-2 rounded-full bg-primary-600"></span>
                         )}
                     </button>
                 </div>
@@ -221,13 +250,61 @@ export function AdminSettlements() {
                 <div
                     className={`
                         overflow-hidden transition-all duration-300 ease-in-out
-                        ${showFilters ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}
+                        ${showFilters ? 'max-h-96 opacity-100 mb-6' : 'max-h-0 opacity-0'}
                     `}
                 >
-                    <div className="bg-white border border-slate-200 rounded-lg p-4">
-                        <div className="text-sm text-slate-500">
-                            Additional filters coming soon...
+                    <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-sm">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Merchant Filter */}
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                                    Filter by Merchant
+                                </label>
+                                <Select
+                                    value={merchantFilter}
+                                    onChange={(e) => setMerchantFilter(e.target.value)}
+                                    options={[
+                                        { value: 'all', label: 'All Merchants' },
+                                        ...merchants.map((m: any) => ({
+                                            value: m.name,
+                                            label: m.company_name
+                                        }))
+                                    ]}
+                                />
+                            </div>
+
+                            {/* Date Range */}
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                                    Date Range
+                                </label>
+                                <div className="flex items-center gap-3">
+                                    <DateTimePicker
+                                        value={dateRange.start || ''}
+                                        onChange={(val) => setDateRange(prev => ({ ...prev, start: val }))}
+                                    />
+                                    <span className="text-slate-400">to</span>
+                                    <DateTimePicker
+                                        value={dateRange.end || ''}
+                                        onChange={(val) => setDateRange(prev => ({ ...prev, end: val }))}
+                                    />
+                                </div>
+                            </div>
                         </div>
+                        
+                        {(merchantFilter !== 'all' || dateRange.start || dateRange.end) && (
+                            <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
+                                <button
+                                    onClick={() => {
+                                        setMerchantFilter('all');
+                                        setDateRange({ start: undefined, end: undefined });
+                                    }}
+                                    className="text-xs font-medium text-primary-600 hover:text-primary-700 transition-colors"
+                                >
+                                    Clear all filters
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -246,6 +323,9 @@ export function AdminSettlements() {
                                     </th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                                         Merchant
+                                    </th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                        Entry Type
                                     </th>
 
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -279,6 +359,17 @@ export function AdminSettlements() {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className="text-sm text-slate-900 font-medium">{log.merchant_name || 'Unknown'}</span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                                log.remitter_name === 'Admin' ? 'bg-purple-100 text-purple-700' :
+                                                log.remitter_name === 'Merchant' ? 'bg-blue-100 text-blue-700' :
+                                                'bg-amber-100 text-amber-700'
+                                            }`}>
+                                                {log.remitter_name === 'Admin' ? 'Admin' : 
+                                                 log.remitter_name === 'Merchant' ? 'Merchant' : 
+                                                 'Realtime'}
+                                            </span>
                                         </td>
 
                                         <td className="px-6 py-4 whitespace-nowrap">

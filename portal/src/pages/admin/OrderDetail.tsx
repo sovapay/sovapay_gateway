@@ -210,6 +210,16 @@ export function AdminOrderDetail() {
                                         <p className="text-xs text-slate-500">Customer</p>
                                     </div>
                                 </div>
+                                <div className="pt-4 border-t border-slate-100 space-y-3">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs text-slate-500">Account Number</span>
+                                        <span className="text-sm font-mono font-medium text-slate-900">{order.account_number || '-'}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-xs text-slate-500">IFSC Code</span>
+                                        <span className="text-sm font-mono font-medium text-slate-900 uppercase">{order.ifsc_code || '-'}</span>
+                                    </div>
+                                </div>
                             </div>
                         </Card>
 

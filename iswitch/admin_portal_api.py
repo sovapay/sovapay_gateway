@@ -379,6 +379,8 @@ def get_orders(filter_data=None, page=1, page_size=20, sort_by="creation", sort_
                 o.transaction_amount,
                 o.status,
                 o.utr,
+                o.customer_account_number as account_number,
+                o.ifsc as ifsc_code,
                 o.creation as date,
                 o.modified
             FROM `tabOrder` o
@@ -443,6 +445,8 @@ def get_order_details(order_id):
                 o.creation as date,
                 o.modified,
                 o.product as payment_method,
+                o.customer_account_number as account_number,
+                o.ifsc as ifsc_code,
                 m.company_name as merchant_name
             FROM `tabOrder` o
             LEFT JOIN `tabMerchant` m ON o.merchant_ref_id = m.name
@@ -1251,10 +1255,8 @@ def get_van_logs(filter_data=None, page=1, page_size=20):
         check_admin_permission()
         
         # Base conditions (Always apply, used for status counts)
-        base_conditions = ["1=1", "v.status = %(default_status)s"]
-        base_values = {
-            "default_status": "Success"
-        }
+        base_conditions = ["1=1"]
+        base_values = {}
         
         # Status condition (Only apply to main query)
         status_condition = ""
@@ -1264,7 +1266,7 @@ def get_van_logs(filter_data=None, page=1, page_size=20):
             if isinstance(filters, str):
                 filters = json.loads(filters)
             
-            if filters.get("status") and filters["status"] != "All Status":
+            if filters.get("status") and filters["status"] != "all" and filters["status"] != "All Status":
                 status_condition = "v.status = %(status)s"
                 base_values["status"] = filters["status"]
             
@@ -1278,15 +1280,25 @@ def get_van_logs(filter_data=None, page=1, page_size=20):
                 base_conditions.append("v.creation <= %(to_date)s")
                 base_values["to_date"] = clean_to
 
-            if filters.get("merchant_id"):
-                base_conditions.append("v.owner = %(merchant_id)s")
+            if filters.get("merchant_id") and filters["merchant_id"] != "all":
+                base_conditions.append("v.merchant = %(merchant_id)s")
                 base_values["merchant_id"] = filters["merchant_id"]
+
+            if filters.get("entry_type") and filters["entry_type"] != "all":
+                entry_type = filters["entry_type"]
+                if entry_type == "Admin":
+                    base_conditions.append("v.remitter_name = 'Admin'")
+                elif entry_type == "Merchant":
+                    base_conditions.append("v.remitter_name = 'Merchant'")
+                elif entry_type == "Realtime":
+                    base_conditions.append("v.remitter_name NOT IN ('Admin', 'Merchant')")
         
         # Construct Where Clauses
         base_where = " AND ".join(base_conditions)
         main_where = base_where
         if status_condition:
             main_where += f" AND {status_condition}"
+
         
         # Get total count (Filtered)
         count_query = f"""
