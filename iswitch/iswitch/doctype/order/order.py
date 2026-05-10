@@ -84,21 +84,9 @@ class Order(Document):
         if self.channel == "Web" and self.product != "PAYIN":
             integration_id = frappe.db.get_value("Merchant", self.owner, "integration")
             self.db_set("integration_id", integration_id)
+            self.db_set("order_type", "Pay")
             frappe.db.savepoint("order_insert")
             try:
-
-                frappe.get_doc({
-                    "doctype": 'Transaction',
-                    "order": self.name,
-                    "merchant": self.merchant_ref_id,
-                    "amount": self.transaction_amount,
-                    "integration": self.integration_id,
-                    "status": "Processing",
-                    "product": self.product,
-                    "transaction_date": frappe.utils.now()
-                }).insert(ignore_permissions=True)
-                
-                frappe.db.commit()
 
                 frappe.enqueue("iswitch.transaction_processing.process_order",
                     order_name=self.name,

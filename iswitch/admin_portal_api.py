@@ -96,17 +96,17 @@ def get_dashboard_stats(period='Last 30 days', merchant=None, from_date=None, to
                 SUM(CASE WHEN status = 'Processed' AND order_type = 'Pay' THEN 1 ELSE 0 END) as payout_processed_orders,
                 SUM(CASE WHEN status IN ('Pending', 'Processing', 'Queued') AND order_type = 'Pay' THEN 1 ELSE 0 END) as payout_pending_orders,
                 SUM(CASE WHEN status IN ('Cancelled', 'Reversed', 'Failed') AND order_type = 'Pay' THEN 1 ELSE 0 END) as payout_cancelled_orders,
-                SUM(CASE WHEN status = 'Processed' AND order_type = 'Pay' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payout_success_amount,
-                SUM(CASE WHEN status IN ('Pending', 'Processing', 'Queued') AND order_type = 'Pay' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payout_pending_amount,
-                SUM(CASE WHEN status IN ('Cancelled', 'Reversed', 'Failed') AND order_type = 'Pay' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payout_failed_amount,
+                SUM(CASE WHEN status = 'Processed' AND order_type = 'Pay' THEN COALESCE(order_amount, 0) ELSE 0 END) as payout_success_amount,
+                SUM(CASE WHEN status IN ('Pending', 'Processing', 'Queued') AND order_type = 'Pay' THEN COALESCE(order_amount, 0) ELSE 0 END) as payout_pending_amount,
+                SUM(CASE WHEN status IN ('Cancelled', 'Reversed', 'Failed') AND order_type = 'Pay' THEN COALESCE(order_amount, 0) ELSE 0 END) as payout_failed_amount,
 
                 SUM(CASE WHEN order_type = 'Topup' THEN 1 ELSE 0 END) as payin_total_orders,
                 SUM(CASE WHEN status = 'Processed' AND order_type = 'Topup' THEN 1 ELSE 0 END) as payin_processed_orders,
                 SUM(CASE WHEN status IN ('Pending', 'Processing', 'Queued') AND order_type = 'Topup' THEN 1 ELSE 0 END) as payin_pending_orders,
                 SUM(CASE WHEN status IN ('Cancelled', 'Reversed', 'Failed') AND order_type = 'Topup' THEN 1 ELSE 0 END) as payin_cancelled_orders,
-                SUM(CASE WHEN status = 'Processed' AND order_type = 'Topup' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payin_success_amount,
-                SUM(CASE WHEN status IN ('Pending', 'Processing', 'Queued') AND order_type = 'Topup' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payin_pending_amount,
-                SUM(CASE WHEN status IN ('Cancelled', 'Reversed', 'Failed') AND order_type = 'Topup' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payin_failed_amount
+                SUM(CASE WHEN status = 'Processed' AND order_type = 'Topup' THEN COALESCE(order_amount, 0) ELSE 0 END) as payin_success_amount,
+                SUM(CASE WHEN status IN ('Pending', 'Processing', 'Queued') AND order_type = 'Topup' THEN COALESCE(order_amount, 0) ELSE 0 END) as payin_pending_amount,
+                SUM(CASE WHEN status IN ('Cancelled', 'Reversed', 'Failed') AND order_type = 'Topup' THEN COALESCE(order_amount, 0) ELSE 0 END) as payin_failed_amount
             FROM `tabOrder` WHERE {base_where}
         """,base_values, as_dict=True)
 
@@ -140,8 +140,8 @@ def get_dashboard_stats(period='Last 30 days', merchant=None, from_date=None, to
         daily_stats = frappe.db.sql(f"""
             SELECT 
                 DATE(creation) as date,
-                SUM(CASE WHEN order_type = 'Pay' AND status = 'Processed' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payout,
-                SUM(CASE WHEN order_type = 'Topup' AND status = 'Processed' THEN COALESCE(transaction_amount, 0) ELSE 0 END) as payin
+                SUM(CASE WHEN order_type = 'Pay' AND status = 'Processed' THEN COALESCE(order_amount, 0) ELSE 0 END) as payout,
+                SUM(CASE WHEN order_type = 'Topup' AND status = 'Processed' THEN COALESCE(order_amount, 0) ELSE 0 END) as payin
             FROM `tabOrder`
             WHERE {chart_where}
             GROUP BY DATE(creation)
@@ -185,10 +185,10 @@ def get_dashboard_stats(period='Last 30 days', merchant=None, from_date=None, to
         
         vols = frappe.db.sql(f"""
             SELECT 
-                SUM(CASE WHEN order_type = 'Pay' AND creation >= %(current_month_start)s THEN transaction_amount ELSE 0 END) as current_payout_vol,
-                SUM(CASE WHEN order_type = 'Topup' AND creation >= %(current_month_start)s THEN transaction_amount ELSE 0 END) as current_payin_vol,
-                SUM(CASE WHEN order_type = 'Pay' AND creation >= %(last_month_start)s AND creation < %(current_month_start)s THEN transaction_amount ELSE 0 END) as last_payout_vol,
-                SUM(CASE WHEN order_type = 'Topup' AND creation >= %(last_month_start)s AND creation < %(current_month_start)s THEN transaction_amount ELSE 0 END) as last_payin_vol
+                SUM(CASE WHEN order_type = 'Pay' AND creation >= %(current_month_start)s THEN order_amount ELSE 0 END) as current_payout_vol,
+                SUM(CASE WHEN order_type = 'Topup' AND creation >= %(current_month_start)s THEN order_amount ELSE 0 END) as current_payin_vol,
+                SUM(CASE WHEN order_type = 'Pay' AND creation >= %(last_month_start)s AND creation < %(current_month_start)s THEN order_amount ELSE 0 END) as last_payout_vol,
+                SUM(CASE WHEN order_type = 'Topup' AND creation >= %(last_month_start)s AND creation < %(current_month_start)s THEN order_amount ELSE 0 END) as last_payin_vol
             FROM `tabOrder`
             WHERE {metric_where(["status='Processed'"])}
         """, {**base_values, "current_month_start": current_month_start, "last_month_start": last_month_start}, as_dict=True)[0]
@@ -1251,8 +1251,10 @@ def get_van_logs(filter_data=None, page=1, page_size=20):
         check_admin_permission()
         
         # Base conditions (Always apply, used for status counts)
-        base_conditions = ["1=1"]
-        base_values = {}
+        base_conditions = ["1=1", "v.status = %(default_status)s"]
+        base_values = {
+            "default_status": "Success"
+        }
         
         # Status condition (Only apply to main query)
         status_condition = ""
@@ -2850,7 +2852,11 @@ def get_ledger_entries(filter_data=None, page=1, page_size=20):
             if filters.get("merchant"):
                 filter_conditions.append("l.owner = %(merchant)s")
                 filter_values["merchant"] = filters["merchant"]
-            
+
+            if filters.get("group"):
+                filter_conditions.append("o.order_type = %(group)s")
+                filter_values["group"] = ("Topup" if filters["group"] == "Payin" else "Pay")
+
             if filters.get("type"):
                 filter_conditions.append("l.transaction_type = %(type)s")
                 filter_values["type"] = filters["type"]
@@ -2871,6 +2877,7 @@ def get_ledger_entries(filter_data=None, page=1, page_size=20):
         count_query = f"""
             SELECT COUNT(*) as total
             FROM `tabLedger` l
+            LEFT JOIN `tabOrder` o ON l.order = o.name
             WHERE {where_clause}
         """
         total_result = frappe.db.sql(count_query, filter_values, as_dict=True)

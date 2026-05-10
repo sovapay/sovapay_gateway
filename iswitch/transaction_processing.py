@@ -41,17 +41,16 @@ def generate_hash(merchant_id, parameters, hashing_method, secret_key, key_order
 
 def handle_transaction(doc):
     try:
-        transaction = frappe.get_doc("Transaction",doc.transaction_id)
-        order = frappe.get_doc("Order",transaction.order)
+        order = frappe.get_doc("Order",doc.order)
         if order.product =="UPI":
-            upi_transaction_processing(order,transaction)
+            upi_transaction_processing(order)
         else:
-            other_transaction_processing(order,transaction)
+            other_transaction_processing(order)
             
     except Exception as e:
         frappe.log_error("Error in transaction handling",str(e))
 
-def upi_transaction_processing(doc ,transaction):
+def upi_transaction_processing(doc):
     try:
         doc.status = "Processing"
         doc.save(ignore_permissions=True)
@@ -142,7 +141,7 @@ def upi_transaction_processing(doc ,transaction):
         frappe.log_error("Error in transaction processing",str(e))
 
 
-def other_transaction_processing(doc,transaction):
+def other_transaction_processing(doc):
     try:
         doc.status = "Processing"
         doc.save(ignore_permissions=True)
