@@ -256,6 +256,9 @@ export function AdminPayoutOrders() {
                                                 Customer
                                             </th>
                                             <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                                Account Details
+                                            </th>
+                                            <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
                                                 Status
                                             </th>
                                             <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -284,6 +287,12 @@ export function AdminPayoutOrders() {
                                                 <td className="px-6 py-4">
                                                     <div className="flex flex-col">
                                                         <span className="text-sm text-slate-900 font-medium">{order.customer || 'N/A'}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm font-mono text-slate-900">{order.account_number || '-'}</span>
+                                                        <span className="text-[10px] font-mono text-slate-500 uppercase">{order.ifsc_code || '-'}</span>
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">

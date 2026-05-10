@@ -198,8 +198,9 @@ export function AdminReports() {
         }
     };
 
-    const ledgerEntries = ledgersData?.entries || [];
+    const ledgerEntries = ledgersData?.ledgers || [];
     const ledgersTotal = ledgersData?.total || 0;
+
 
     const adminSettlements = settlementsData?.logs || settlementsData?.settlements || [];
     const settlementsTotal = settlementsData?.total || 0;
