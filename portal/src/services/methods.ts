@@ -164,7 +164,7 @@ export const adminMethods = {
     getReportInsights: 'iswitch.admin_portal_api.get_report_insights',
     getReportTransactions: 'iswitch.admin_portal_api.get_report_transactions',
     getReportSettlements: 'iswitch.admin_portal_api.get_van_logs',
-    getReportLedgers: 'iswitch.admin_portal_api.get_ledger_entries',
+    getReportLedgers: 'iswitch.admin_portal_api.get_report_ledgers',
 
     // Search & Broadcast
     globalSearch: 'iswitch.admin_portal_api.global_search',

@@ -2843,7 +2843,7 @@ def get_ledger_entries(filter_data=None, page=1, page_size=20):
         # Build filter conditions
         filter_conditions = ["1=1"]
         filter_values = {}
-        
+
         filters = filter_data
         if filters:
             if isinstance(filters, str):
@@ -2852,10 +2852,6 @@ def get_ledger_entries(filter_data=None, page=1, page_size=20):
             if filters.get("merchant"):
                 filter_conditions.append("l.owner = %(merchant)s")
                 filter_values["merchant"] = filters["merchant"]
-
-            if filters.get("group"):
-                filter_conditions.append("o.order_type = %(group)s")
-                filter_values["group"] = ("Topup" if filters["group"] == "Payin" else "Pay")
 
             if filters.get("type"):
                 filter_conditions.append("l.transaction_type = %(type)s")
@@ -2876,8 +2872,7 @@ def get_ledger_entries(filter_data=None, page=1, page_size=20):
         # Get total count
         count_query = f"""
             SELECT COUNT(*) as total
-            FROM `tabLedger` l
-            LEFT JOIN `tabOrder` o ON l.order = o.name
+            FROM tabLedger l
             WHERE {where_clause}
         """
         total_result = frappe.db.sql(count_query, filter_values, as_dict=True)
