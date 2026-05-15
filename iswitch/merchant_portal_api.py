@@ -1692,7 +1692,7 @@ def export_ledger_to_excel(filters=None):
                 l.transaction_amount,
                 l.opening_balance,
                 l.closing_balance,
-                l.creation as date,
+                l.creation as date
             FROM `tabLedger` l
             WHERE {where_clause}
             ORDER BY l.creation DESC

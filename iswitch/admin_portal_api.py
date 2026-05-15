@@ -376,6 +376,7 @@ def get_orders(filter_data=None, page=1, page_size=20, sort_by="creation", sort_
                 o.customer_name as customer,
                 o.order_amount as amount,
                 o.fee,
+                o.tax,
                 o.transaction_amount,
                 o.status,
                 o.utr,
@@ -4156,37 +4157,72 @@ def export_report(filters=None, report_type=None):
                     t.get('utr')
                 ])
                 
-        elif report_type == 'ledgers':
-            res = get_ledger_entries(json.dumps(filters), page=1, page_size=5000)
-            entries = res.get('entries', [])
+        elif report_type in ['ledgers', 'payin_ledgers', 'payout_ledgers']:
+            # Adjust group if needed
+            group = filters.get('group')
+            if not group:
+                if report_type == 'payin_ledgers': group = 'Payin'
+                elif report_type == 'payout_ledgers': group = 'Payout'
+            
+            res = get_report_ledgers(
+                start_date=filters.get('from_date') or filters.get('start_date'),
+                end_date=filters.get('to_date') or filters.get('end_date'),
+                merchant_id=filters.get('merchant') or filters.get('merchant_id'),
+                entry_type=filters.get('type') or filters.get('entry_type'),
+                group=group,
+                page=1,
+                page_size=5000
+            )
+            ledgers = res.get('ledgers', [])
             
             columns = ['ID', 'Date', 'Merchant', 'Description', 'Credit', 'Debit', 'Balance']
-            for e in entries:
+            for e in ledgers:
                 data.append([
                     e.get('id'),
                     e.get('date'),
                     e.get('merchant_name'),
-                    e.get('order_id'),
+                    e.get('description'),
                     e.get('credit'),
                     e.get('debit'),
                     e.get('balance')
                 ])
                 
-        elif report_type == 'settlements':
-            res = get_van_logs(json.dumps(filters), page=1, page_size=5000)
-            logs = res.get('logs', []) # get_van_logs returns 'logs'
-            
-            columns = ['ID', 'Date', 'Merchant', 'Account Number', 'Amount', 'Type', 'Status', 'UTR']
-            for l in logs:
+        elif report_type == 'payin_report':
+            res = get_payin_report(
+                start_date=filters.get('from_date'),
+                end_date=filters.get('to_date'),
+                merchant_id=filters.get('merchant_id'),
+                status=filters.get('status')
+            )
+            rows_data = res.get('rows', [])
+            columns = ['Merchant Name', 'Total Payin', 'Fees', 'GST', 'Total Credited', 'Txn Count']
+            for r in rows_data:
                 data.append([
-                    l.get('id'),
-                    l.get('date'),
-                    l.get('merchant_name'),
-                    l.get('account_number'),
-                    l.get('amount'),
-                    l.get('type'),
-                    l.get('status'),
-                    l.get('utr')
+                    r.get('merchant_name'),
+                    r.get('total_payin'),
+                    r.get('total_fees'),
+                    r.get('total_gst'),
+                    r.get('total_credited'),
+                    r.get('txn_count')
+                ])
+
+        elif report_type == 'payout_report':
+            res = get_payout_report(
+                start_date=filters.get('from_date'),
+                end_date=filters.get('to_date'),
+                merchant_id=filters.get('merchant_id'),
+                status=filters.get('status')
+            )
+            rows_data = res.get('rows', [])
+            columns = ['Merchant Name', 'Total Payout', 'Fees', 'GST', 'Total Debited', 'Txn Count']
+            for r in rows_data:
+                data.append([
+                    r.get('merchant_name'),
+                    r.get('total_payout'),
+                    r.get('total_fees'),
+                    r.get('total_gst'),
+                    r.get('total_debited'),
+                    r.get('txn_count')
                 ])
 
 
@@ -4338,3 +4374,151 @@ def global_search(query):
     except Exception as e:
         frappe.log_error(f"Error in global_search: {str(e)}", "Admin Portal API")
         return {"results": []}
+@frappe.whitelist()
+def get_payin_report(start_date=None, end_date=None, merchant_id=None, status=None):
+    """Get aggregated payin report (merchant-wise)"""
+    try:
+        check_admin_permission()
+        
+        start_date = normalize_date_filter(start_date, is_end_date=False)
+        end_date = normalize_date_filter(end_date, is_end_date=True)
+        
+        conditions = ["o.order_type = 'Topup'"]
+        params = []
+        
+        if start_date:
+            conditions.append("o.creation >= %s")
+            params.append(start_date)
+        if end_date:
+            conditions.append("o.creation <= %s")
+            params.append(end_date)
+        if merchant_id and merchant_id != 'all':
+            conditions.append("o.merchant_ref_id = %s")
+            params.append(merchant_id)
+        if status and status != 'all':
+            conditions.append("o.status = %s")
+            params.append(status)
+            
+        where_clause = " AND ".join(conditions)
+        
+        # 1. Merchant-wise aggregation
+        merchant_query = f"""
+            SELECT 
+                m.company_name as merchant_name,
+                SUM(o.order_amount) as total_payin,
+                SUM(o.fee) as total_fees,
+                SUM(o.tax) as total_gst,
+                SUM(o.order_amount - o.fee - o.tax) as total_credited,
+                COUNT(o.name) as txn_count,
+                o.merchant_ref_id as merchant_id
+            FROM `tabOrder` o
+            LEFT JOIN `tabMerchant` m ON o.merchant_ref_id = m.name
+            WHERE {where_clause}
+            GROUP BY o.merchant_ref_id
+            ORDER BY total_payin DESC
+        """
+        
+        rows = frappe.db.sql(merchant_query, tuple(params), as_dict=True)
+        
+        # 2. Summary aggregation
+        summary_query = f"""
+            SELECT 
+                SUM(o.order_amount) as total_payin,
+                SUM(o.fee) as total_fees,
+                SUM(o.tax) as total_gst,
+                SUM(o.order_amount - o.fee - o.tax) as total_credited
+            FROM `tabOrder` o
+            WHERE {where_clause}
+        """
+        
+        summary_result = frappe.db.sql(summary_query, tuple(params), as_dict=True)
+        summary = summary_result[0] if summary_result else {}
+        
+        return {
+            "rows": rows,
+            "summary": {
+                "total_payin": float(summary.get("total_payin") or 0),
+                "total_fees": float(summary.get("total_fees") or 0),
+                "total_gst": float(summary.get("total_gst") or 0),
+                "total_credited": float(summary.get("total_credited") or 0)
+            }
+        }
+        
+    except Exception as e:
+        frappe.log_error(f"Error in get_payin_report: {str(e)}", "Admin Portal API")
+        return {"rows": [], "summary": {}}
+
+@frappe.whitelist()
+def get_payout_report(start_date=None, end_date=None, merchant_id=None, status=None):
+    """Get aggregated payout report (merchant-wise)"""
+    try:
+        check_admin_permission()
+        
+        start_date = normalize_date_filter(start_date, is_end_date=False)
+        end_date = normalize_date_filter(end_date, is_end_date=True)
+        
+        conditions = ["o.order_type = 'Pay'"]
+        params = []
+        
+        if start_date:
+            conditions.append("o.creation >= %s")
+            params.append(start_date)
+        if end_date:
+            conditions.append("o.creation <= %s")
+            params.append(end_date)
+        if merchant_id and merchant_id != 'all':
+            conditions.append("o.merchant_ref_id = %s")
+            params.append(merchant_id)
+        if status and status != 'all':
+            conditions.append("o.status = %s")
+            params.append(status)
+            
+        where_clause = " AND ".join(conditions)
+        
+        # 1. Merchant-wise aggregation
+        merchant_query = f"""
+            SELECT 
+                m.company_name as merchant_name,
+                SUM(o.order_amount) as total_payout,
+                SUM(o.fee) as total_fees,
+                SUM(o.tax) as total_gst,
+                SUM(o.order_amount + o.fee + o.tax) as total_debited,
+                COUNT(o.name) as txn_count,
+                o.merchant_ref_id as merchant_id
+            FROM `tabOrder` o
+            LEFT JOIN `tabMerchant` m ON o.merchant_ref_id = m.name
+            WHERE {where_clause}
+            GROUP BY o.merchant_ref_id
+            ORDER BY total_payout DESC
+        """
+        
+        rows = frappe.db.sql(merchant_query, tuple(params), as_dict=True)
+        
+        # 2. Summary aggregation
+        summary_query = f"""
+            SELECT 
+                SUM(o.order_amount) as total_payout,
+                SUM(o.fee) as total_fees,
+                SUM(o.tax) as total_gst,
+                SUM(o.order_amount + o.fee + o.tax) as total_debited
+            FROM `tabOrder` o
+            WHERE {where_clause}
+        """
+        
+        summary_result = frappe.db.sql(summary_query, tuple(params), as_dict=True)
+        summary = summary_result[0] if summary_result else {}
+        
+        return {
+            "rows": rows,
+            "summary": {
+                "total_payout": float(summary.get("total_payout") or 0),
+                "total_fees": float(summary.get("total_fees") or 0),
+                "total_gst": float(summary.get("total_gst") or 0),
+                "total_debited": float(summary.get("total_debited") or 0)
+            }
+        }
+        
+    except Exception as e:
+        frappe.log_error(f"Error in get_payout_report: {str(e)}", "Admin Portal API")
+        return {"rows": [], "summary": {}}
+

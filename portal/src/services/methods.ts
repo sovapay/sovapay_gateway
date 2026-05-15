@@ -163,7 +163,8 @@ export const adminMethods = {
     getProductDistribution: 'iswitch.admin_portal_api.get_product_distribution',
     getReportInsights: 'iswitch.admin_portal_api.get_report_insights',
     getReportTransactions: 'iswitch.admin_portal_api.get_report_transactions',
-    getReportSettlements: 'iswitch.admin_portal_api.get_van_logs',
+    getPayinReport: 'iswitch.admin_portal_api.get_payin_report',
+    getPayoutReport: 'iswitch.admin_portal_api.get_payout_report',
     getReportLedgers: 'iswitch.admin_portal_api.get_report_ledgers',
 
     // Search & Broadcast
