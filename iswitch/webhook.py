@@ -149,7 +149,7 @@ def process_albepay_payin_webhook(payload: Dict[str, Any]) -> Dict[str, Any]:
             handle_topup_failure(order_id, "Failed", remark)
             frappe.db.commit()
             
-        elif status == "SUCCESS":
+        elif status == "SUCCESS" or status == "Success" or status == "success":
             handle_topup_success(order_id, utr)
             frappe.db.commit()
 

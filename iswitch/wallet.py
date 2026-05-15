@@ -371,6 +371,7 @@ def topup_order():
         try:
             crn = None
             qr = None
+            payment_ref = None
             status = None
             remark = None
             if processor.name == "PAYPROCESS2605030048":
@@ -415,6 +416,7 @@ def topup_order():
                     api_data = api_response.get("data",{})
                     crn = api_data.get("clientRefNo","")
                     qr = api_data.get("paymentLink","")
+                    payment_ref = api_data.get("paymentReferenceNo","")
                     remark = api_response.get("message","Payment initiated successfully.")
                     status = "Success"
                 else:
@@ -422,7 +424,7 @@ def topup_order():
                     remark = api_response.get("message","Payment initiation failed.")
 
             if status == "Success":
-                frappe.db.set_value("Order", order.name,{"status":"Processing", "processor_order_id": crn, "reason": remark})
+                frappe.db.set_value("Order", order.name,{"status":"Processing", "processor_order_id": crn, "crn": payment_ref, "reason": remark})
                 
                 response = {
                     "code":"0x0200",

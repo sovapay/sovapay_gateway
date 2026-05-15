@@ -159,6 +159,85 @@ def update_record():
             frappe.db.rollback(save_point = "status_process")
             frappe.log_error(frappe.get_traceback(), f"Error updating transaction for Order: {result.name}")
 
+@frappe.whitelist(allow_guest = True)
+def process_single_order(order_id):
+    try:
+        doc = frappe.get_doc("Order",order_id)
+        if (doc.status != "Processing"):
+            return {
+                "status": "Failed",
+                "message": "Order is not in processing status"
+            }
+
+        status = "Pending"
+        utr = None
+
+        if doc.integration_id == "PAYPROCESS2605030048":
+            processor = frappe.get_doc("Integration", doc.integration_id)
+            merchant_id = processor.get_password("client_id")
+            secret_key = processor.get_password("secret_key")
+            headers = {
+                "merchantID": merchant_id,
+                "secretKey": secret_key,
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "paymentReferenceNo": doc.crn
+            }
+            key_order = ["paymentReferenceNo"]
+            generated_hash = generate_hash(merchant_id, payload, 'sha512', secret_key, key_order)
+            payload['hash'] = generated_hash
+
+            url = processor.api_endpoint.rstrip("/") + "/v1/pg/check-transaction-status"
+            response = requests.post(url, json=payload, headers=headers, timeout=10)
+            api_response = None
+            try:
+                api_response = response.json()
+            except Exception as e:
+                frappe.log_error("Error parsing API response", response.text)
+            
+            status_flag = api_response.get("success")
+            if status_flag:
+                api_data = api_response.get("data")[0]
+                utr = api_data.get("utrId")
+                status = api_data.get("updatedStatus")
+                
+        if status == "SUCCESS" or status == "Success" or status == "success":
+            handle_topup_success(doc.name, utr)
+        
+        return {
+            "status": "Success",
+            "processor_status": status,
+            "message": "Order status updated successfully"
+        }
+
+    except Exception as e:
+        frappe.log_error("Error in AlbegaPay status check", frappe.get_traceback())
+
+
+def generate_hash(merchant_id, parameters, hashing_method, secret_key, key_order):
+    hash_data = str(merchant_id)
+    
+    for key in key_order:
+        value = parameters[key]
+        # Convert to string in JavaScript-like manner
+        if isinstance(value, float) and value.is_integer():
+            # Convert float like 10.0 to "10" (like JavaScript)
+            value_str = str(int(value))
+        else:
+            value_str = str(value)
+        hash_data += '|' + value_str
+    
+    hash_data += '|' + str(secret_key)
+    
+    if len(hash_data) > 0:
+        # Create hash using the specified method
+        hash_obj = hashlib.new(hashing_method)
+        hash_obj.update(hash_data.encode('utf-8'))
+        return hash_obj.hexdigest().lower()
+    
+    return None
 
 def get_hash_string(payload, secret_key):
     """

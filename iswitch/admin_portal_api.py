@@ -1255,8 +1255,10 @@ def get_van_logs(filter_data=None, page=1, page_size=20):
         check_admin_permission()
         
         # Base conditions (Always apply, used for status counts)
-        base_conditions = ["1=1"]
-        base_values = {}
+        base_conditions = ["1=1", "v.status = %(default_status)s"]
+        base_values = {
+            "default_status": "Success"
+        }
         
         # Status condition (Only apply to main query)
         status_condition = ""

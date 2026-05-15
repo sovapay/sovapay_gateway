@@ -277,7 +277,7 @@ export function AdminPayoutOrders() {
                                                         <p className="text-sm font-mono text-slate-900 hover:text-primary-600 transition-colors">{truncateId(order.id, 16)}</p>
                                                     </Link>
                                                     {order.utr && (
-                                                        <p className="text-[10px] text-slate-400 mt-0.5 font-mono">UTR: {truncateId(order.utr, 12)}</p>
+                                                        <p className="text-[10px] text-slate-400 mt-0.5 font-mono">{truncateId(order.utr, 12)}</p>
                                                     )}
                                                 </td>
                                                 <td className="px-6 py-4">

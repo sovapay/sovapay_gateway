@@ -20,6 +20,7 @@
   "status",
   "integration_id",
   "order_type",
+  "crn",
   "section_break_emwh",
   "customer_name",
   "vpa",
@@ -208,13 +209,18 @@
    "fieldtype": "Data",
    "label": "Processor Order ID",
    "search_index": 1
+  },
+  {
+   "fieldname": "crn",
+   "fieldtype": "Data",
+   "label": "CRN"
   }
  ],
  "grid_page_length": 50,
  "hide_toolbar": 1,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-02 18:09:40.466870",
+ "modified": "2026-05-11 11:05:33.088126",
  "modified_by": "Administrator",
  "module": "iSwitch",
  "name": "Order",
