@@ -10,7 +10,7 @@ import { useFrappeGetCall } from 'frappe-react-sdk';
 import { adminMethods } from '../../services/methods';
 import { useExportData } from '../../hooks';
 
-type ReportTab = 'overview' | 'payin_ledgers' | 'payout_ledgers' | 'settlements';
+type ReportTab = 'overview' | 'payin_ledgers' | 'payout_ledgers' | 'payin_report' | 'payout_report';
 
 export function AdminReports() {
 
@@ -36,7 +36,7 @@ export function AdminReports() {
 
     const [searchQuery] = useState('');
     const [ledgerTypeFilter, setLedgerTypeFilter] = useState(localStorage.getItem('admin-reports-ledger-type') || 'all');
-    const [settlementStatusFilter, setSettlementStatusFilter] = useState(localStorage.getItem('admin-reports-settlement-status') || 'all');
+    const [reportStatusFilter, setReportStatusFilter] = useState(localStorage.getItem('admin-reports-status') || 'all');
     const [currentPage, setCurrentPage] = useState(1);
     const [showFilters, setShowFilters] = useState(false);
     const [isCustomRangeModalOpen, setIsCustomRangeModalOpen] = useState(false);
@@ -127,28 +127,34 @@ export function AdminReports() {
         isLedgersTab ? `admin-report-ledgers-${JSON.stringify(ledgerFilters)}` : null
     );
 
-    // Fetch settlements
-    const settlementsFilters = {
-        filter_data: JSON.stringify({
-            from_date: dateRange.start,
-            to_date: dateRange.end,
+    // Fetch Payin Report
+    const { data: { message: payinReportData } = {} } = useFrappeGetCall(
+        activeTab === 'payin_report' ? adminMethods.getPayinReport : '',
+        {
+            start_date: dateRange.start,
+            end_date: dateRange.end,
             merchant_id: merchantFilter !== 'all' ? merchantFilter : undefined,
-            status: settlementStatusFilter !== 'all' ? settlementStatusFilter : undefined
-        }),
-        page: currentPage,
-        page_size: 20
-    };
+            status: reportStatusFilter !== 'all' ? reportStatusFilter : undefined
+        },
+        `admin-payin-report-${dateRange.start}-${dateRange.end}-${merchantFilter}-${reportStatusFilter}`
+    );
 
-    const { data: { message: settlementsData } = {} } = useFrappeGetCall(
-        activeTab === 'settlements' ? adminMethods.getReportSettlements : '',
-        settlementsFilters,
-        activeTab === 'settlements' ? `admin-report-settlements-${JSON.stringify(settlementsFilters)}` : null
+    // Fetch Payout Report
+    const { data: { message: payoutReportData } = {} } = useFrappeGetCall(
+        activeTab === 'payout_report' ? adminMethods.getPayoutReport : '',
+        {
+            start_date: dateRange.start,
+            end_date: dateRange.end,
+            merchant_id: merchantFilter !== 'all' ? merchantFilter : undefined,
+            status: reportStatusFilter !== 'all' ? reportStatusFilter : undefined
+        },
+        `admin-payout-report-${dateRange.start}-${dateRange.end}-${merchantFilter}-${reportStatusFilter}`
     );
 
     // Reset page when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [dateRange, merchantFilter, searchQuery, ledgerTypeFilter, settlementStatusFilter]);
+    }, [dateRange, merchantFilter, searchQuery, ledgerTypeFilter, reportStatusFilter]);
 
     const metrics = metricsData || {
         payin_revenue: 0,
@@ -183,9 +189,9 @@ export function AdminReports() {
             if (merchantFilter !== 'all') filters.merchant = merchantFilter;
             if (ledgerTypeFilter !== 'all') filters.type = ledgerTypeFilter;
             filters.group = activeTab === 'payin_ledgers' ? 'Payin' : 'Payout';
-        } else if (activeTab === 'settlements') {
+        } else if (activeTab === 'payin_report' || activeTab === 'payout_report') {
             if (merchantFilter !== 'all') filters.merchant_id = merchantFilter;
-            if (settlementStatusFilter !== 'all') filters.status = settlementStatusFilter;
+            if (reportStatusFilter !== 'all') filters.status = reportStatusFilter;
         }
 
         try {
@@ -201,17 +207,14 @@ export function AdminReports() {
     const ledgerEntries = ledgersData?.ledgers || [];
     const ledgersTotal = ledgersData?.total || 0;
 
-
-    const adminSettlements = settlementsData?.logs || settlementsData?.settlements || [];
-    const settlementsTotal = settlementsData?.total || 0;
-
     const pageSize = 20;
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: TrendingUp },
-        { id: 'payin_ledgers', label: 'Payin Ledger', icon: FileText },
-        { id: 'payout_ledgers', label: 'Payout Ledger', icon: FileText },
-        { id: 'settlements', label: 'Settlements', icon: Landmark }
+        { id: 'payin_report', label: 'Payin Report', icon: FileText },
+        { id: 'payout_report', label: 'Payout Report', icon: FileText },
+        { id: 'payin_ledgers', label: 'Payin Ledger', icon: Activity },
+        { id: 'payout_ledgers', label: 'Payout Ledger', icon: Activity }
     ];
 
     return (
@@ -290,29 +293,42 @@ export function AdminReports() {
                         </div>
                     )}
 
-                    {/* Status Tabs for Settlements */}
-                    {activeTab === 'settlements' && (
+                    {/* Status Tabs for Payin/Payout Reports */}
+                    {(activeTab === 'payin_report' || activeTab === 'payout_report') && (
                         <div className="flex flex-wrap gap-2">
-                            {(['all', 'pending', 'success', 'failed'] as const).map((status) => (
+                            {(['all', 'Success', 'Pending', 'Failed'] as const).map((status) => (
                                 <button
                                     key={status}
                                     onClick={() => {
-                                        const newStatus = status === 'all' ? 'all' : status;
-                                        localStorage.setItem('admin-reports-settlement-status', newStatus);
-                                        setSettlementStatusFilter(newStatus);
+                                        localStorage.setItem('admin-reports-status', status);
+                                        setReportStatusFilter(status);
                                         setCurrentPage(1);
                                     }}
                                     className={`
                                         flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all
-                                        ${(settlementStatusFilter.toLowerCase() === status || (settlementStatusFilter === 'all' && status === 'all'))
+                                        ${(reportStatusFilter === status)
                                             ? 'bg-slate-900 text-white shadow-sm'
                                             : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
                                         }
                                     `}
                                 >
-                                    <span>{status.charAt(0).toUpperCase() + status.slice(1)}</span>
+                                    <span>{status}</span>
                                 </button>
                             ))}
+                        </div>
+                    )}
+
+                    {/* Search Bar for Reports */}
+                    {(activeTab === 'payin_report' || activeTab === 'payout_report') && (
+                        <div className="relative w-full md:w-64">
+                            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <input
+                                type="text"
+                                placeholder="Search merchant..."
+                                className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            />
                         </div>
                     )}
 
@@ -589,86 +605,121 @@ export function AdminReports() {
                     </Card>
                 )}
 
-                {activeTab === 'settlements' && (
-                    <Card padding="none">
-                        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-                            <h3 className="font-semibold text-slate-900">Settlement History Report</h3>
-                            <span className="text-xs text-slate-500">Showing {adminSettlements.length} entries</span>
+                {(activeTab === 'payin_report' || activeTab === 'payout_report') && (
+                    <div className="space-y-6">
+                        {/* Summary Cards */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {activeTab === 'payin_report' ? (
+                                <>
+                                    <Card>
+                                        <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Payin</p>
+                                        <p className="text-2xl font-bold text-slate-900 mt-1">
+                                            {formatCurrency(payinReportData?.summary?.total_payin || 0)}
+                                        </p>
+                                    </Card>
+                                    <Card>
+                                        <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Fees</p>
+                                        <p className="text-2xl font-bold text-slate-900 mt-1">
+                                            {formatCurrency(payinReportData?.summary?.total_fees || 0)}
+                                        </p>
+                                    </Card>
+                                    <Card>
+                                        <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">GST</p>
+                                        <p className="text-2xl font-bold text-slate-900 mt-1">
+                                            {formatCurrency(payinReportData?.summary?.total_gst || 0)}
+                                        </p>
+                                    </Card>
+                                    <Card className="bg-primary-50 border-primary-100">
+                                        <p className="text-sm font-medium text-primary-700 uppercase tracking-wider">Credited</p>
+                                        <p className="text-2xl font-bold text-primary-900 mt-1">
+                                            {formatCurrency(payinReportData?.summary?.total_credited || 0)}
+                                        </p>
+                                    </Card>
+                                </>
+                            ) : (
+                                <>
+                                    <Card>
+                                        <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Payout</p>
+                                        <p className="text-2xl font-bold text-slate-900 mt-1">
+                                            {formatCurrency(payoutReportData?.summary?.total_payout || 0)}
+                                        </p>
+                                    </Card>
+                                    <Card>
+                                        <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Fees</p>
+                                        <p className="text-2xl font-bold text-slate-900 mt-1">
+                                            {formatCurrency(payoutReportData?.summary?.total_fees || 0)}
+                                        </p>
+                                    </Card>
+                                    <Card>
+                                        <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">GST</p>
+                                        <p className="text-2xl font-bold text-slate-900 mt-1">
+                                            {formatCurrency(payoutReportData?.summary?.total_gst || 0)}
+                                        </p>
+                                    </Card>
+                                    <Card className="bg-primary-50 border-primary-100">
+                                        <p className="text-sm font-medium text-primary-700 uppercase tracking-wider">Total Debited</p>
+                                        <p className="text-2xl font-bold text-primary-900 mt-1">
+                                            {formatCurrency(payoutReportData?.summary?.total_debited || 0)}
+                                        </p>
+                                    </Card>
+                                </>
+                            )}
                         </div>
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full">
-                                <thead className="bg-slate-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">ID</th>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Merchant</th>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Account</th>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Amount</th>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">UTR</th>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Remitter</th>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Status</th>
-                                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap">Date</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {adminSettlements.map((log: any) => (
-                                        <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                                            <td className="px-6 py-4 text-sm font-mono text-slate-900">{log.id}</td>
-                                            <td className="px-6 py-4 text-sm text-slate-900">
-                                                {log.merchant_name || 'N/A'}
-                                            </td>
-                                            <td className="px-6 py-4 text-sm font-mono text-slate-600">{log.account_number}</td>
-                                            <td className="px-6 py-4 text-sm font-medium text-slate-900">{formatCurrency(log.amount)}</td>
-                                            <td className="px-6 py-4 text-sm font-mono text-slate-600">{log.utr || '-'}</td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-sm text-slate-900">{log.remitter_name || '-'}</div>
-                                                <div className="text-xs text-slate-500">{log.remitter_account_number || ''}</div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <Badge variant={
-                                                    log.status === 'Success' ? 'success' :
-                                                        log.status === 'Pending' ? 'warning' :
-                                                            log.status === 'Failed' ? 'error' : 'primary'
-                                                }>
-                                                    {log.status}
-                                                </Badge>
-                                            </td>
-                                            <td className="px-6 py-4 text-sm text-slate-500 whitespace-nowrap">{formatDateTime(log.date)}</td>
-                                        </tr>
-                                    ))}
-                                    {adminSettlements.length === 0 && (
-                                        <tr>
-                                            <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
-                                                No VAN logs found matching the selected filters.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                        <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-slate-50/50">
-                            <p className="text-sm text-slate-500 font-medium">
-                                Showing {adminSettlements.length} of {settlementsTotal} entries
-                            </p>
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    disabled={currentPage === 1}
-                                    onClick={() => setCurrentPage(currentPage - 1)}
-                                >
-                                    Previous
-                                </Button>
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    disabled={currentPage * pageSize >= settlementsTotal}
-                                    onClick={() => setCurrentPage(currentPage + 1)}
-                                >
-                                    Next
-                                </Button>
+
+                        {/* Merchant Table */}
+                        <Card padding="none">
+                            <div className="p-4 border-b border-slate-200">
+                                <h3 className="font-semibold text-slate-900">
+                                    {activeTab === 'payin_report' ? 'Payin' : 'Payout'} Report by Merchant
+                                </h3>
                             </div>
-                        </div>
-                    </Card>
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full">
+                                    <thead className="bg-slate-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-widest">Merchant Name</th>
+                                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-widest">
+                                                {activeTab === 'payin_report' ? 'Total Payin' : 'Total Payout'}
+                                            </th>
+                                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-widest">Fees</th>
+                                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-widest">GST</th>
+                                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-widest">
+                                                {activeTab === 'payin_report' ? 'Total Credited' : 'Total Debited'}
+                                            </th>
+                                            <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-widest">Txn Count</th>
+                                            <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-widest whitespace-nowrap">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {(activeTab === 'payin_report' ? payinReportData?.rows : payoutReportData?.rows)?.map((row: any, i: number) => (
+                                            <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                                <td className="px-6 py-4 text-sm text-slate-900 font-medium">{row.merchant_name || 'Unknown'}</td>
+                                                <td className="px-6 py-4 text-sm text-right text-slate-900">
+                                                    {formatCurrency(activeTab === 'payin_report' ? row.total_payin : row.total_payout)}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-right text-slate-600">{formatCurrency(row.total_fees)}</td>
+                                                <td className="px-6 py-4 text-sm text-right text-slate-600">{formatCurrency(row.total_gst)}</td>
+                                                <td className="px-6 py-4 text-sm text-right font-semibold text-slate-900">
+                                                    {formatCurrency(activeTab === 'payin_report' ? row.total_credited : row.total_debited)}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-right text-slate-500">{row.txn_count}</td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <Badge variant="primary" className="cursor-pointer hover:bg-primary-100">View</Badge>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {((activeTab === 'payin_report' ? payinReportData?.rows : payoutReportData?.rows)?.length === 0) && (
+                                            <tr>
+                                                <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
+                                                    No data found for the selected filters.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
+                    </div>
                 )}
             </div>
 
