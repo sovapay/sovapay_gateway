@@ -162,6 +162,12 @@ export function PayoutOrders() {
                         Date
                       </th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Fee
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Tax
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
                         Total
                       </th>
                     </tr>
@@ -193,9 +199,18 @@ export function PayoutOrders() {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
+                          <span className="text-sm text-slate-600">{formatCurrency(order.fee || 0)}</span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className="text-sm text-slate-600">{formatCurrency(order.tax || 0)}</span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
                           <span className="text-sm font-medium text-slate-900">
                             {formatCurrency(order.amount)}
                           </span>
+                          {order.transaction_amount && (
+                            <p className="text-[10px] text-slate-400 mt-0.5">Txn: {formatCurrency(order.transaction_amount)}</p>
+                          )}
                         </td>
                       </tr>
                     ))}

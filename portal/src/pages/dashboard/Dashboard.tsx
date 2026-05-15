@@ -361,6 +361,9 @@ export function Dashboard() {
                         <span className="text-sm font-medium text-slate-900">
                           {formatCurrency(order.amount)}
                         </span>
+                        {order.transaction_amount && (
+                          <p className="text-[10px] text-slate-400 mt-0.5">Txn: {formatCurrency(order.transaction_amount)}</p>
+                        )}
                       </td>
                     </tr>
                   ))}
