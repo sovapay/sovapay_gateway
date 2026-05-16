@@ -4459,7 +4459,7 @@ def get_payout_report(start_date=None, end_date=None, merchant_id=None, status=N
         start_date = normalize_date_filter(start_date, is_end_date=False)
         end_date = normalize_date_filter(end_date, is_end_date=True)
         
-        conditions = ["o.order_type = 'Pay'"]
+        conditions = ["(o.order_type = 'Pay' OR o.channel = 'Web')"]
         params = []
         
         if start_date:
