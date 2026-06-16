@@ -1688,12 +1688,17 @@ def export_ledger_to_excel(filters=None):
                 l.name as id,
                 l.order,
                 l.client_ref_id,
+                o.status,
                 l.transaction_type as type,
+                l.order_amount,
+                l.fee,
+                l.tax,
                 l.transaction_amount,
                 l.opening_balance,
                 l.closing_balance,
                 l.creation as date
             FROM `tabLedger` l
+            LEFT JOIN `tabOrder` o ON l.`order` = o.name
             WHERE {where_clause}
             ORDER BY l.creation DESC
         """, filter_values, as_dict=True)
@@ -1701,13 +1706,17 @@ def export_ledger_to_excel(filters=None):
         # Create Excel file
         from frappe.utils.xlsxutils import make_xlsx
         
-        data = [["Ledger ID","Order ID", "Client Ref ID", "Type", "TXN Amount", "Opening Balance", "Closing Balance", "Date"]]
+        data = [["Ledger ID","Order ID", "Client Ref ID", "status", "Type", "Order Amount", "Tax", "Fee", "TXN Amount", "Opening Balance", "Closing Balance", "Date"]]
         for entry in entries:
             data.append([
                 entry.id,
                 entry.order,
                 entry.client_ref_id,
+                entry.status,
                 entry.type,
+                entry.order_amount,
+                entry.tax,
+                entry.fee,
                 entry.transaction_amount,
                 entry.opening_balance,
                 entry.closing_balance,

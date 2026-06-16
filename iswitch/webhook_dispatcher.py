@@ -43,6 +43,7 @@ def send_webhook(transaction_name: str, merchant: str, status: str):
             "event": event,
             "crn": doc.name,
             "clientRefID": doc.client_ref_id,
+            "amount": doc.order_amount,
             "status": status,
             "utr": doc.utr,
             "timestamp": str(now_datetime())
